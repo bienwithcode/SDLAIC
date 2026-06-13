@@ -74,12 +74,17 @@ No external services needed for tests. Tests use temp directories via `t.TempDir
 - `cmd/` shares `workspaceRoot` var set by `discoverWorkspace()` via `PersistentPreRun`
 - Flag resets in `_test.go` (`resetInitFlags()`, `resetStatusFlags()`, etc.) — Cobra flags persist between test runs
 
-### Markdown (Skills & Agents)
+### Markdown (Skills & Agents) Style
 
 - Frontmatter: `name` + `description` fields
 - Sections: `## Core Principle`, `## Process`, `## Output Artifacts`, `## Verification`, `## Common Mistakes`, `## Handoff`
 - Tone: imperative, no hedging. "You may NOT skip phases" not "please don't skip"
 - Cross-references use relative paths: `references/code-research.md`
+
+### Skill & Agent Authoring Rules
+
+- **Global Applicability**: Rules, instructions, and workflows in skills must be written for global applicability. Do NOT tie rules to specific environments or platform-specific execution mechanisms.
+- **Tool & API Abstraction**: Do NOT mandate or reference specific tool names (e.g., `grep_search`, `call_mcp_tool`, or particular MCP server names), specific API endpoints, or credentials. Always describe the required capability conceptually (e.g., "use a search tool", "perform codebase research", "invoke the API") so that the skills remain fully compatible and portable across all agent runtimes (Claude Code, Gemini CLI, etc.).
 
 ## Testing Instructions
 
