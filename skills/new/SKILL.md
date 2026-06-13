@@ -23,76 +23,64 @@ The user may provide:
 
 ## Process
 
-### Step 1: Gather Jira Context (if key provided)
+### Step 1: Input Gathering & Resolution
 
-If a Jira key is provided, fetch the full ticket context:
+#### Step 1.1: Source Input Resolution (Jira / Text / File Path / URL)
 
-```bash
-# Get description, status, priority, assignee, labels
-jira issue view <KEY> --plain
+First, classify the user's input:
+- **Jira Key**: If a Jira key is provided (e.g., `JIRA-123`), fetch the full ticket context:
+  ```bash
+  # Get description, status, priority, assignee, labels
+  jira issue view <KEY> --plain
 
-# Get all comments (may contain clarifications, decisions, acceptance criteria)
-jira issue comment list <KEY> --plain
-```
+  # Get all comments (may contain clarifications, decisions, acceptance criteria)
+  jira issue comment list <KEY> --plain
+  ```
+  From the output, extract issue metadata and verbatim description/comments. Do NOT proceed without context.
+  
+- **File Path**: If the user provides a local file path or reference (e.g. `/path/to/file.md` or similar absolute/relative path format):
+  1. Use a file reading tool to check if the file exists and is readable.
+  2. If the file does NOT exist, is empty, or is unreadable, HALT. Inform the user and ask them to check the path or provide a raw description.
+  3. If the file exists and is readable, read its contents. Use the resolved file content as the "description of the work" for all downstream steps.
 
-From the output, extract the following metadata. For the description body, do
-NOT summarize or restructure — copy verbatim, preserving every section, heading,
-and bullet exactly as the ticket author wrote it. If the ticket has sections like
-"Open Questions", "Dependencies", "Acceptance Criteria", "Technical Approach",
-"Out of Scope", etc., they MUST all appear in `context.md` as-written.
+- **External URL**: If the user provides an external URL (e.g. a link to a GitHub issue, online design doc, or ticket page):
+  1. Use a web reading or browser tool to fetch the content of the URL.
+  2. If the fetch fails, or the page is unreadable, or contains no meaningful content, HALT. Inform the user and ask them to verify the URL or provide a raw description.
+  3. If successful, use the resolved web content as the "description of the work" for all downstream steps.
+  
+- **Raw Text Description**: If the user provides a raw text description directly, use it as the "description of the work".
 
-- **Summary:** One-line description of what the ticket asks for
-- **Type:** Bug, Story, Task, Epic
-- **Priority:** High/Medium/Low
-- **Status:** Current workflow status
-- **Description (verbatim):** The raw description body — every section, every
-  heading, every bullet. Do not invent your own section hierarchy.
-- **Linked Issues:** Related/blocking/blocked-by issues with their status
-- **Comments:** Key decisions, clarifications, and context from comments
-- **Labels/Components:** For scoping
+If no input is provided, ask the user for a description of the work.
 
-If no Jira key is provided, ask the user for a description of the work.
+#### Step 1.2: Description Quality Assessment
 
-**Error handling:**
-- `401 Unauthorized`: Jira auth issue. Suggest checking `~/.netrc` or `JIRA_API_TOKEN`. Do NOT proceed without context.
-- `404 Not Found`: Issue doesn't exist or no permission. Ask user to verify the key.
-- `jira: command not found`: Jira CLI not installed. Ask user to install or provide context manually.
+Assess the completeness of the resolved description (from Jira issue description, resolved file contents, resolved URL contents, or raw text description) against this checklist (mark each Y/N):
 
-### Step 1.5: Ticket Quality Check
-
-A weak ticket poisons every downstream phase. Before proceeding, assess ticket
-completeness against this checklist (mark each Y/N):
-
-- [ ] **Description** — exists, > 50 chars, not vague ("improve X", "fix issue" alone fails)
+- [ ] **Description** — exists, is NOT a file path or URL string, contains actual descriptive content of the work (> 50 characters of descriptive text), and is not vague ("improve X", "fix issue" alone fails)
 - [ ] **Acceptance Criteria** — explicit list of done-conditions
-- [ ] **Scope Boundary** — ticket mentions what is NOT included, or scope is self-evidently narrow
+- [ ] **Scope Boundary** — mentions what is NOT included, or scope is self-evidently narrow
 - [ ] **Dependencies / Blockers** — noted explicitly, or genuinely none
-- [ ] **Open Questions / Unknowns** — listed explicitly, or ticket is fully resolved
+- [ ] **Open Questions / Unknowns** — listed explicitly, or fully resolved
+- [ ] **Input Resolved** — if a file path or URL was provided, it was successfully resolved/read and its content is loaded as the description
 
 Compute quality:
-- **HIGH** = 5/5 pass
-- **MEDIUM** = 3–4/5
-- **LOW** = ≤ 2/5
+- **HIGH** = 6/6 pass
+- **MEDIUM** = 4–5/6
+- **LOW** = ≤ 3/6
 
 **If MEDIUM or LOW**, present options to the user:
 
-> ⚠️ Ticket quality is {LEVEL}. Missing: {list of failed items}.
+> ⚠️ Description/ticket quality is {LEVEL}. Missing: {list of failed items}.
 >
-> A. **Update the ticket in Jira first** (recommended for shared work — the
->    ticket is the source of truth and other people will read it later)
-> B. **Provide the missing info inline now** (I'll record it in `context.md`
->    with `[INLINE-PROVIDED]` tags so grillme treats it as ground truth)
-> C. **Proceed anyway** — `context.md` will be flagged with the quality level;
->    a structured **Gap Manifest** will be written so grillme knows exactly which
->    surfaces are mandatory and what to elicit for each missing item — grillme
->    uses this as ground truth, not as a hint
+> A. **Update the source first** (recommended — update the ticket in Jira, or update the local description file first so it remains the source of truth)
+> B. **Provide the missing info inline now** (I'll record it in `context.md` with `[INLINE-PROVIDED]` tags so grillme treats it as ground truth)
+> C. **Proceed anyway** — `context.md` will be flagged with the quality level; a structured **Gap Manifest** will be written so grillme knows exactly which surfaces are mandatory and what to elicit for each missing item
 
-- User picks A → halt this skill and ask the user to come back when the ticket is updated.
+- User picks A → halt this skill and ask the user to come back when the source is updated.
 - User picks B → ask each missing item one at a time, record answers inline in `context.md`.
-- User picks C → record the quality flag, generate Gap Manifest (see Step 3), and proceed.
+- User picks C → record the quality flag, generate Gap Manifest, and proceed.
 
-The Gap Manifest maps each failed checklist item to the grillme surface(s) that
-must cover it. Use this mapping to populate it:
+The Gap Manifest maps each failed checklist item to the grillme surface(s) that must cover it. Use this mapping to populate it:
 
 | Failed Item | Grillme Surface | Priority | Elicit |
 |-------------|----------------|----------|--------|
@@ -102,41 +90,50 @@ must cover it. Use this mapping to populate it:
 | Dependencies / Blockers | Failure modes, Rollback | 2 | What happens if a dependency isn't ready or breaks mid-deploy |
 | Open Questions | (assign per question) | 1 | For each open question: create a separate row, assign nearest catalog surface based on content; default to Failure modes if unclear |
 
-The result is recorded in `context.md` under `## Ticket Quality Assessment` and
-`## Gap Manifest` in Step 3.
+The result is recorded in `context.md` under `## Ticket Quality Assessment` and `## Gap Manifest` in Step 5.
 
 If quality is HIGH, this step passes silently — do not bother the user.
 
-### Step 2: Codebase Research
+### Step 2: Codebase & Web Research
 
-Run a code research query against the relevant project path. Tool selection follows your workspace convention (see `references/code-research.md`).
+Run research queries to gather context about the change. Tool selection follows your workspace convention (see `references/code-research.md`).
 
-- **Primary:** one targeted query on the topic from the ticket description, scoped to `projects/<project>`.
-- **Fallback if project path is unclear:** a broader query without a path scope to locate the right project first.
+1. **Local Codebase Research**:
+   - Run a targeted codebase query on the topic from the resolved description, scoped to `projects/<project>` (or a broader query if the project path is unclear).
+   - Look for existing precedents, related configurations, or circular dependencies.
+   
+2. **External / Web Research**:
+   - If the resolved description mentions any third-party APIs, external libraries, protocols, or services (e.g., "Antigravity provider", external SDKs, or integrations) that are new or have no established local codebase precedents:
+     * Perform a web search to find official documentation, API specifications, or known limitations for these technologies.
+     * Do not guess or assume how external services behave.
+     * Record key web research findings (including URL citations) in the Research Summary.
 
-Empty result is valid — record "no precedent found for `<terms>`" and proceed. Do not silently skip.
+Empty result is valid — record "no codebase precedent or web documentation found for `<terms>`" and proceed. Do not silently skip.
 
-### Step 3: Output Research Summary
+### Step 3: Research Output & Actors Extraction
+
+#### Step 3.1: Output Research Summary
 
 Produce a concise summary covering:
-- **What exists:** Relevant code, patterns, and architecture found
-- **What's missing:** Gaps that the change needs to address
-- **Dependencies:** Other systems or modules this change touches
-- **Risks:** Potential conflicts or breaking changes identified
+- **What exists (Codebase):** Relevant code, patterns, and architecture found locally.
+- **External/Web Findings:** Key findings from web search on external dependencies, services, or new concepts mentioned in the description (with URL citations). If none, state "No external research needed".
+- **What's missing:** Gaps that the change needs to address.
+- **Dependencies:** Other systems or modules this change touches.
+- **Risks:** Potential conflicts or breaking changes identified.
 
-### Step 3.5: Extract Actors & Use Cases
+#### Step 3.2: Extract Actors & Use Cases
 
 A lightweight, evidence-grounded extraction so `grillme` can anchor questions to a specific `(Actor, Use Case)` instead of asking abstractly. This is **not** a formal spec — the SDLAIC `spec.md` (written in PROPOSED phase) still holds the WHEN/THEN clauses.
 
-**Hard provenance bar.** Every actor and every use case must cite either a verbatim ticket quote OR a `file:line` symbol from the Step 2 code research. No source → drop the row.
+**Hard provenance bar.** Every actor and every use case must cite either a verbatim ticket/resolved description quote OR a `file:line` symbol from the Step 2 code research. No source → drop the row.
 
 **Skip rule.** If the change is cosmetic / docs-only / test-only / dependency bump / pure refactor with no behavior change, write `N/A: <one-line reason>` for the whole section in Step 5 and proceed. Do not force actors onto trivial changes.
 
 **Two-pass extraction:**
 
-1. **Pass 1 — Human actors from ticket text.** Re-read the ticket description and key comments. Extract every named role / persona / user type the author mentioned. Each row gets `[ticket: "<verbatim quote>"]` citation.
+1. **Pass 1 — Human actors from description text.** Re-read the ticket/resolved description and key comments. Extract every named role / persona / user type mentioned. Each row gets `[ticket: "<verbatim quote>"]` or `[description: "<verbatim quote>"]` citation.
 2. **Pass 2 — System actors from code research.** Re-scan the Step 2 research output for non-human callers: cron jobs, queue workers, webhook receivers, scheduled tasks, policy guards, route middleware, role/permission enums, third-party API callers. Each row gets `[code: <file:line> <symbol>]` citation.
-3. **Merge & flag conflicts.** If a ticket-named role does not reconcile with code (e.g. ticket says "Manager" but code has only `Admin` + `Instructor` enum values), flag the row with `⚠ MISMATCH: <description>` rather than silently picking one. The mismatch is a grillme question.
+3. **Merge & flag conflicts.** If a named role does not reconcile with code (e.g. description says "Manager" but code has only `Admin` + `Instructor` enum values), flag the row with `⚠ MISMATCH: <description>` rather than silently picking one. The mismatch is a grillme question.
 
 **Caps.** ≤ 6 actors total, ≤ 3 primary use cases per actor. Borderline → merge or drop. The aim is anchoring quality, not exhaustiveness.
 
@@ -152,7 +149,7 @@ A lightweight, evidence-grounded extraction so `grillme` can anchor questions to
 
 #### Quality rubric — apply before committing each row
 
-- **GOOD actor:** named in ticket OR code, single citation, one-line role description that distinguishes them from other actors.
+- **GOOD actor:** named in ticket/description OR code, single citation, one-line role description that distinguishes them from other actors.
 - **BAD actor:** "User" / "Admin" with no citation; an actor invented from "what users might want"; a system actor with no code reference.
 - **GOOD use case:** specific trigger → concrete action → named object → observable outcome, citation per element where possible, ≥1 alternate or edge enumerated.
 - **BAD use case:** "User uses the system" (vague); paths that don't map to any code path AND aren't tagged `[NEW SURFACE]`; happy-path-only.
@@ -226,7 +223,7 @@ If a Jira key was provided, save the gathered context to `context.md`:
 
 ## Ticket Quality Assessment
 - Level: HIGH | MEDIUM | LOW
-- Checklist: [Description: Y/N, AC: Y/N, Scope: Y/N, Deps: Y/N, OQ: Y/N]
+- Checklist: [Description: Y/N, AC: Y/N, Scope: Y/N, Deps: Y/N, OQ: Y/N, Resolved: Y/N]
 - Missing items handled by: (none / inline-provided / proceed-with-flag)
 
 ## Gap Manifest
@@ -237,13 +234,13 @@ If a Jira key was provided, save the gathered context to `context.md`:
 | <failed item> | <surface name> | <1–3> | <what grillme must draw out from the user> |
 
 ## Actors & Use Cases
-<!-- Generated by new Step 3.5. grillme anchors questions to (Actor, Use Case). -->
+<!-- Generated by new Step 3.2. grillme anchors questions to (Actor, Use Case). -->
 <!-- If the change is cosmetic/docs/test-only/dep-bump/pure-refactor: replace the tables below with a single line "N/A: <reason>" and skip the rest. -->
 
 ### Actors
 | Actor | Type | Citation | Notes |
 |-------|------|----------|-------|
-| <name> | Human / System | [ticket: "<verbatim quote>"] or [code: <file:line> <symbol>] | <one-line role> |
+| <name> | Human / System | [ticket: "<verbatim quote>"] or [description: "<verbatim quote>"] or [code: <file:line> <symbol>] | <one-line role> |
 
 ### Use Cases
 #### <Actor name>
@@ -292,7 +289,7 @@ This is a stable checkpoint. Future agents can roll back here if direction chang
 
 ```
 Change "<change-name>" initialized.
-- Ticket Quality: {HIGH|MEDIUM|LOW}
+- Ticket/Description Quality: {HIGH|MEDIUM|LOW}
 - Open Questions captured: {N} (grillme will address each)
 - Dependencies noted: {N}
 - Actors extracted: {N} (or N/A — trivial change)
@@ -321,7 +318,7 @@ to a specific (Actor, Use Case) when that section is populated.
 - [ ] `context.md > ## Ticket Quality Assessment` exists with Level + Checklist + Missing items handled by
 - [ ] `context.md > ## Gap Manifest` exists (populated when quality is MEDIUM/LOW + Option C; empty table rows otherwise)
 - [ ] `context.md > ## Actors & Use Cases` exists (populated tables OR explicit `N/A: <reason>` for trivial changes)
-- [ ] Every actor row has a citation — `[ticket: "..."]` or `[code: <file:line> <symbol>]` — no uncited rows
+- [ ] Every actor row has a citation — `[ticket: "..."]` or `[description: "..."]` or `[code: <file:line> <symbol>]` — no uncited rows
 - [ ] Every use case has Happy path + ≥1 Alternate or Edge case (no happy-path-only rows)
 - [ ] Caps respected: ≤ 6 actors, ≤ 3 primary use cases per actor
 - [ ] If `## Gap Manifest` is populated, every gap is cross-linked to ≥1 actor/use case in `## Gap Manifest Cross-link`
@@ -337,8 +334,8 @@ to a specific (Actor, Use Case) when that section is populated.
 | Proceeding without any context | If Jira fetch fails and user can't provide context, STOP. Don't guess. |
 | Ignoring the project path | Research without project scope returns irrelevant results. Ask which project. |
 | Reformatting the ticket description into an agent-chosen section hierarchy | Paste the raw `jira issue view` description verbatim under `## Ticket Description (verbatim)`. Do not invent your own sections, do not merge, do not drop. Open Questions, Dependencies, AC, etc. must all survive intact. |
-| Skipping the Ticket Quality Check because the ticket "looks fine" | Always run the 5-item checklist in Step 1.5. The cost is seconds; the cost of a missed gap is rework downstream (gap discovered during manual testing post-review). |
-| Listing "User" / "Admin" as generic actors with no citation | Drop. Either cite the ticket's exact wording (`[ticket: "..."]`) or cite the code symbol (`[code: <file:line> <path/to/file>]`). Generic uncited actors are exactly what the provenance bar exists to block. |
+| Skipping the Ticket Quality Check because the ticket "looks fine" | Always run the 6-item checklist in Step 1.2. The cost is seconds; the cost of a missed gap is rework downstream (gap discovered during manual testing post-review). |
+| Listing "User" / "Admin" as generic actors with no citation | Drop. Either cite the ticket's exact wording (`[ticket: "..."]`) or description (`[description: "..."]`) or cite the code symbol (`[code: <file:line> <path/to/file>]`). Generic uncited actors are exactly what the provenance bar exists to block. |
 | Inventing actors from "what users might want" | Provenance bar. No source → no actor. If the change introduces a new actor type, tag `[NEW SURFACE]` on the use case rather than fabricating a citation. |
 | Forcing the Actors & Use Cases section onto a trivial change (typo, dep bump, pure refactor) | Use `N/A: <one-line reason>` for the whole section. The extraction has a cost; skip it when the change has no behavior surface. |
 | Nesting side-effect emails/webhooks inside the State Transitions table | State Transition rows are only for persisted state changes (DB / cache / file). Notifications, webhook dispatches, async fan-out with no persisted change go in the separate "Side-effect-only Actions" list. |

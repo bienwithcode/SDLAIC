@@ -17,14 +17,16 @@ Bad assumptions are the #1 source of rework. This phase exists to break the idea
 
 ## Process
 
-### Step 1: Read Context
+### Step 1: Read & Validate Context
+
+#### Step 1.1: Read Context
 
 Read the following in order:
-1. `.sdlaic/changes/<name>/context.md` — Jira description, comments, and research summary
+1. `.sdlaic/changes/<name>/context.md` — Jira description, comments, resolved file description, and research summary
 2. Research Summary from the previous `new` phase
 
 Identify:
-- **Explicit requirements** — what the ticket literally asks for
+- **Explicit requirements** — what the ticket/resolved description literally asks for
 - **Implicit assumptions** — things not stated but assumed true
 - **Vague language** — words like "improve", "faster", "better", "should"
 - **Missing information** — what's not mentioned but probably matters
@@ -44,11 +46,22 @@ from this list — or explicitly justify itself as actor-agnostic. If the sectio
 is `N/A: <reason>` (trivial change) or absent, anchoring is not required and
 G1 falls back to "names a concrete situation".
 
+#### Step 1.2: Challenge Context Sanity (Context Logic & Alignment Gate)
+
+Before identifying risk surfaces, actively challenge and validate the integrity of the context:
+1. **Sanity Check**: Ensure that the description in `context.md` is actual descriptive text of the change. It must NOT be a raw local file path, a URL, or an empty placeholder.
+2. **Alignment Check**: Confirm that the active change name (e.g. `add-antigravity-providers`) logically aligns with the description of the work in the context.
+3. **Logic & Codebase Contradictions**: Check if the requirements in the description contradict known patterns in the codebase or contain logical impossibilities (e.g., calling an API that doesn't exist, modifying a dependency that is read-only, making changes to a file outside the workspace, or introducing circular dependencies).
+4. **Halt Condition**: If any check fails (e.g., description is a file path, or name is completely mismatched, or there is a glaring logical contradiction):
+   - **HALT** the phase. Do NOT proceed to Step 2.
+   - Present the mismatch/contradiction/flaw clearly to the user.
+   - Instruct the user to re-run the `new` phase with corrected inputs or correct the description in `context.md` before continuing.
+
 ### Step 2: Identify Risk Surfaces
 
 Scan the context and list **every risk surface that actually applies to this ticket**. Do not cap the count — the number of questions equals the number of applicable surfaces. Some surfaces may legitimately be N/A (mark them so, with a one-line reason).
 
-**Gap-driven surfaces (from Step 1 Gap Manifest check) are always IN.** Merge
+**Gap-driven surfaces (from Step 1.1 Gap Manifest check) are always IN.** Merge
 them into the inventory first, using the Priority from the manifest. The default
 catalog surfaces are then scanned and added after. If a gap-driven surface
 overlaps with a catalog surface, keep the gap-driven row's Priority and expand
@@ -282,6 +295,7 @@ This checkpoint records the challenged and validated assumptions before design b
 
 ## Verification
 
+- [ ] Context Sanity and Logic checks passed (Step 1.2 completed, verifying that the description is valid, aligns with the change name, and does not contain codebase/logic contradictions)
 - [ ] If `context.md > ## Gap Manifest` had populated rows, every row appears as IN in the Surface Inventory; N/A requires explicit written justification
 - [ ] Gap-driven surfaces used "gap-driven: <elicit>" as G2 anchor when no file:line or web evidence existed
 - [ ] If Gap Manifest was populated: `rationale.md` contains `## Gap Manifest Coverage` with one row per manifest entry
@@ -307,6 +321,7 @@ This checkpoint records the challenged and validated assumptions before design b
 
 | Mistake | Fix |
 |---------|-----|
+| Blindly trusting the input context description without verification | Always run Step 1.2 sanity checks. If the description is a file path, empty, or mismatched with the change name, halt the phase. |
 | Asking soft questions ("Is there anything else?") | Ask hard, specific questions with failure context |
 | Asking all questions at once | One at a time. Always. |
 | Accepting vague answers ("it should be fine") | Push for specificity: "What does 'fine' mean? How do we measure it?" |
