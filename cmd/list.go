@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"sdlaic/internal/storage"
-	"sdlaic/internal/workspace"
+	"github.com/bienwithcode/SDLAIC/internal/storage"
+	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
 
 var (

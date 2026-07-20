@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"sdlaic/internal/templates"
+	"github.com/bienwithcode/SDLAIC/internal/templates"
 )
 
 // instructionsCmd represents the `sdlaic instructions` command.

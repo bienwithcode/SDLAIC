@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"sdlaic/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/domain"
 )
 
 // ResolvePath returns the full path to a change directory based on the

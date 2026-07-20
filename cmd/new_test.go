@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"sdlaic/internal/config"
+	"github.com/bienwithcode/SDLAIC/internal/config"
 )
 
 func TestNewChange_CreatesChangeDir(t *testing.T) {

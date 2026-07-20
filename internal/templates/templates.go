@@ -8,7 +8,7 @@ import (
 	"embed"
 	"fmt"
 
-	"sdlaic/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/domain"
 )
 
 //go:embed data/*.md

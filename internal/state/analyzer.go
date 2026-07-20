@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"sdlaic/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/domain"
 )
 
 // AnalyzePhase determines the current phase of a change by examining which

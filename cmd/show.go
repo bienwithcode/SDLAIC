@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"sdlaic/internal/domain"
-	"sdlaic/internal/storage"
-	"sdlaic/internal/workspace"
+	"github.com/bienwithcode/SDLAIC/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/storage"
+	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
 
 // showCmd represents the `sdlaic show` command.

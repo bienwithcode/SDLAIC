@@ -7,10 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"sdlaic/internal/domain"
-	"sdlaic/internal/storage"
-	"sdlaic/internal/templates"
-	"sdlaic/internal/workspace"
+	"github.com/bienwithcode/SDLAIC/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/storage"
+	"github.com/bienwithcode/SDLAIC/internal/templates"
+	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
 
 // newCmd represents the `sdlaic new` command group.

@@ -1,4 +1,4 @@
-module sdlaic
+module github.com/bienwithcode/SDLAIC
 
 go 1.24.6
 

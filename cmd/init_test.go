@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"sdlaic/internal/config"
-	"sdlaic/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/config"
+	"github.com/bienwithcode/SDLAIC/internal/domain"
 )
 
 func TestInit_CreatesWorkspace(t *testing.T) {

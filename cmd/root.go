@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"sdlaic/internal/config"
-	"sdlaic/internal/domain"
-	"sdlaic/internal/workspace"
+	"github.com/bienwithcode/SDLAIC/internal/config"
+	"github.com/bienwithcode/SDLAIC/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
 
 // workspaceRoot is the discovered workspace root directory.

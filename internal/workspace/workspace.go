@@ -10,8 +10,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"sdlaic/internal/config"
-	"sdlaic/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/config"
+	"github.com/bienwithcode/SDLAIC/internal/domain"
 )
 
 const configFile = ".sdlaicrc"

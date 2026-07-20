@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"sdlaic/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/domain"
 )
 
 // helper to create a change directory with specified artifact files

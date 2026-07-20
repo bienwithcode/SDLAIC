@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"sdlaic/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/domain"
 )
 
 // LoadLocal reads and parses a .sdlaicrc file from the given path.

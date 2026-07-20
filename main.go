@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"sdlaic/cmd"
+	"github.com/bienwithcode/SDLAIC/cmd"
 )
 
 // version is set at build time via:
