@@ -28,6 +28,5 @@ jobs:
           distribution: goreleaser
           version: '~> v2'
           args: release --clean
-          workdir: SDLAIC
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
