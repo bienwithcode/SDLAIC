@@ -97,7 +97,7 @@ func NewWithHome(home, projectHash, change string) *Store {
 
 // dir returns the change's gate-state directory.
 func (s *Store) dir() string {
-	return filepath.Join(s.home, ".sdlaic", "state", s.projectHash, s.change)
+	return filepath.Join(s.home, ".sdlaic", "state", filepath.Base(s.projectHash), filepath.Base(s.change))
 }
 
 func (s *Store) metaPath() string    { return filepath.Join(s.dir(), metaFile) }
@@ -180,7 +180,7 @@ func (s *Store) LoadOrDefault(workflow domain.WorkflowLevel) (domain.GatesFile, 
 // reset to pending (its artifact will be re-drafted) and every downstream gate
 // is marked superseded and reset to pending. The event is appended to history.
 // meta.json must already exist.
-func (s *Store) ReEnter(fromKey, reason string) (domain.GatesFile, error) {
+func (s *Store) ReEnter(fromKey, reason string, currentWorkflow domain.WorkflowLevel) (domain.GatesFile, error) {
 	fromIdx := -1
 	for i, g := range pipeline {
 		if g.key == fromKey {
@@ -200,12 +200,9 @@ func (s *Store) ReEnter(fromKey, reason string) (domain.GatesFile, error) {
 		gf.Gates = make(map[string]domain.Gate, len(pipeline))
 	}
 
-	// Reset status honors the workflow so a light/free change never becomes
-	// blocked by a re-entry (gates that never gated stay non-blocking).
-	reset := resetStatus(gf.Workflow)
+	reset := resetStatus(currentWorkflow)
 
-	// Reset the re-entered gate: it will be re-drafted and re-reviewed from
-	// scratch, so clear its approval, review, and any prior supersede flag.
+	// Reset the re-entered gate
 	from := gf.Gates[fromKey]
 	from.Status = reset
 	from.ApprovedAt = nil
@@ -213,9 +210,10 @@ func (s *Store) ReEnter(fromKey, reason string) (domain.GatesFile, error) {
 	from.Superseded = false
 	from.SupersededBy = nil
 	from.Review = domain.ReviewRecord{}
+	from.Grill = domain.GrillRecord{}
 	gf.Gates[fromKey] = from
 
-	// Supersede everything downstream and reset it for re-drafting.
+	// Supersede everything downstream
 	var superseded []string
 	for _, g := range pipeline[fromIdx+1:] {
 		gate := gf.Gates[g.key]
@@ -225,6 +223,7 @@ func (s *Store) ReEnter(fromKey, reason string) (domain.GatesFile, error) {
 		gate.ApprovedAt = nil
 		gate.SkippedAt = nil
 		gate.Review = domain.ReviewRecord{}
+		gate.Grill = domain.GrillRecord{}
 		gf.Gates[g.key] = gate
 		superseded = append(superseded, g.key)
 	}

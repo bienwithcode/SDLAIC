@@ -192,7 +192,7 @@ func TestReEnterSupersedesDownstream(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	gf, err := s.ReEnter("spec", "ticket scope changed")
+	gf, err := s.ReEnter("spec", "ticket scope changed", domain.WorkflowStrict)
 	require.NoError(t, err)
 
 	// The re-entered gate is reset to pending, approval cleared.
@@ -217,7 +217,7 @@ func TestReEnterLightKeepsGatesSkipped(t *testing.T) {
 	_, err := s.Init(domain.WorkflowFree)
 	require.NoError(t, err)
 
-	gf, err := s.ReEnter("proposal", "changed")
+	gf, err := s.ReEnter("proposal", "changed", domain.WorkflowFree)
 	require.NoError(t, err)
 	// In free/light mode, re-entry must NOT introduce a blocking (pending) status.
 	for _, k := range GateKeys() {
@@ -231,10 +231,11 @@ func TestReEnterClearsSupersededOnReentryPoint(t *testing.T) {
 	require.NoError(t, err)
 
 	// First re-entry from proposal marks spec/design/tasks superseded.
-	_, err = s.ReEnter("proposal", "first")
+	_, err = s.ReEnter("proposal", "first", domain.WorkflowStrict)
 	require.NoError(t, err)
-	// Second re-entry now targets spec — it must no longer read as superseded.
-	gf, err := s.ReEnter("spec", "second")
+	// Now re-enter spec, which supersedes design and tasks, but also clears the
+	// supersede flag on spec itself.
+	gf, err := s.ReEnter("spec", "second", domain.WorkflowStrict)
 	require.NoError(t, err)
 
 	assert.False(t, gf.Gates["spec"].Superseded, "re-entry point must not stay superseded")
@@ -250,7 +251,7 @@ func TestReEnterClearsStaleReview(t *testing.T) {
 	_, err = s.SetGate("design", domain.GateStatusApproved, &approve, false)
 	require.NoError(t, err)
 
-	gf, err := s.ReEnter("proposal", "scope changed")
+	gf, err := s.ReEnter("proposal", "scope changed", domain.WorkflowStrict)
 	require.NoError(t, err)
 	// design was superseded and reset — its stale APPROVE verdict must be cleared.
 	assert.Equal(t, domain.Verdict(""), gf.Gates["design"].Review.Verdict)
@@ -272,7 +273,7 @@ func TestReEnterUnknownKey(t *testing.T) {
 	s := newTestStore(t)
 	_, err := s.Init(domain.WorkflowStrict)
 	require.NoError(t, err)
-	_, err = s.ReEnter("bogus", "x")
+	_, err = s.ReEnter("bogus", "x", domain.WorkflowStrict)
 	assert.Error(t, err)
 }
 
@@ -345,7 +346,7 @@ func TestReEnter_ClearsSkippedAt(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, gfSkip.Gates["spec"].SkippedAt)
 
-	gf, err := s.ReEnter("proposal", "scope changed")
+	gf, err := s.ReEnter("proposal", "scope changed", domain.WorkflowStrict)
 	require.NoError(t, err)
 	assert.Nil(t, gf.Gates["spec"].SkippedAt, "a reset gate must clear its skip marker")
 }

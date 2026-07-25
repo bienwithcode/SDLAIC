@@ -37,16 +37,15 @@ NO_ACTIVE_CHANGE ──→ new ──→ context.md
 
 ## Phase Routing
 
-Read artifact presence (`sdlaic status`) AND gate status (`sdlaic gate status --json`), then route on the pair `(highest artifact present, its gate status)`:
+Read artifact presence (`sdlaic status`) AND gate status (`sdlaic gate status --json`), then route on the pair `(highest artifact present, its gate status)`. A phase is **unblocked only when its artifact exists AND its gate has `is_passing: true` in the JSON output.**
 
-| Artifact state | Gate of current phase | Route To |
-|---|---|---|
-| No active change | — | `new` — initialize a change first |
-| context only (or gate not passed for proposal) | proposal not `approved`/`skipped` | `grillme proposal` → `proposal` → `review proposal` |
-| proposal approved | spec not passed | `grillme spec` → `spec` → `review spec` |
-| spec approved (or skipped as non-user-facing) | design not passed | `grillme design` → `design` → `review design` |
-| design approved | tasks not passed | `grillme tasks` → `plan` → `review tasks` |
-| tasks approved | — | `apply` — execute tasks |
+| Highest Artifact Found | Gate Status | Routing Action |
+|------------------------|-------------|----------------|
+| context only (or gate not passed for proposal) | proposal `is_passing: false` | `grillme proposal` → `proposal` → `review proposal` |
+| proposal passed | spec `is_passing: false` | `grillme spec` → `spec` → `review spec` |
+| spec passed (or skipped as non-user-facing) | design `is_passing: false` | `grillme design` → `design` → `review design` |
+| design passed | tasks `is_passing: false` | `grillme tasks` → `plan` → `review tasks` |
+| tasks passed | — | `apply` — execute tasks |
 | code implemented | — | `review code` — terminal pre-PR audit |
 | review complete | new work | `new` — start fresh |
 

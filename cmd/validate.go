@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/bienwithcode/SDLAIC/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/gatestate"
 	"github.com/bienwithcode/SDLAIC/internal/state"
 	"github.com/bienwithcode/SDLAIC/internal/storage"
 	"github.com/bienwithcode/SDLAIC/internal/workspace"
@@ -132,8 +133,30 @@ func runValidate(cmd *cobra.Command, args []string) error {
 
 	// Strict mode: check artifacts up to current phase are populated
 	if validateStrict {
+		// Load gate state to respect explicit skips
+		store := gatestate.NewWithHome(homeDir, cfg.ProjectHash, changeName)
+		gf, _ := store.Load()
+
 		// Read all artifacts and check phases
 		for _, at := range domain.OrderedArtifactTypes() {
+			var gateKey string
+			switch at {
+			case domain.ArtifactProposal:
+				gateKey = "proposal"
+			case domain.ArtifactSpec:
+				gateKey = "spec"
+			case domain.ArtifactDesign:
+				gateKey = "design"
+			case domain.ArtifactTasks:
+				gateKey = "tasks"
+			}
+
+			if gateKey != "" {
+				if g, ok := gf.Gates[gateKey]; ok && g.Status == domain.GateStatusSkipped {
+					continue // explicitly skipped, no artifact required
+				}
+			}
+
 			populated := false
 
 			label := at.FileName()

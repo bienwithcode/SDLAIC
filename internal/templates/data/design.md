@@ -1,33 +1,36 @@
-# Design
+# Design: <change-name>
 
-## Architecture Overview
+## Context
+[System area touched, current state, how it works today.]
 
-<!-- Describe the high-level architecture of the solution -->
+## Goals / Non-Goals
+- Goal: [...]
+- Non-Goal: [explicitly out of scope]
 
-## Component Design
+## Pattern Research
+**Queries used**: [...]
+**Findings**: [pattern — path — reuse/reference/adapt]
+**Decision**: [Reuse X / Build new because Z / No patterns found for <terms>]
 
-### <!-- Component Name -->
+## Input Boundary Validation
+[Where untrusted input enters; sanitization/parsing strategy; failure behavior.]
 
-**Responsibility:** <!-- What this component does -->
+## Subsystem Boundaries
+[Modules involved, ownership, how boundaries are enforced.]
 
-**Interface:**
+## Decisions
+| Area | Decision | Rationale |
+|------|----------|-----------|
+| [area] | [decision] | [why; cite reused utility path if any] |
 
-<!-- Define the public interface -->
+## Risks / Trade-offs
+- [risk]: [mitigation]
 
-**Dependencies:** <!-- What this component depends on -->
+## Challenge & Resolution Log
+<!-- From the design grill. State "No grill (workflow: <level>)" if none ran. -->
+| Challenge | Resolution |
+|-----------|------------|
+| [architectural concern] | [decision] |
 
-## Data Flow
-
-<!-- Describe how data flows through the system -->
-
-## Error Handling
-
-<!-- Describe error handling strategy -->
-
-## Security Considerations
-
-<!-- Address security concerns -->
-
-## Testing Strategy
-
-<!-- Describe how this design will be tested -->
+## Open Questions
+- [unresolved, or "None blocking"]
