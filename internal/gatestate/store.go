@@ -196,21 +196,33 @@ func (s *Store) ReEnter(fromKey, reason string) (domain.GatesFile, error) {
 	if err != nil {
 		return domain.GatesFile{}, err
 	}
+	if gf.Gates == nil {
+		gf.Gates = make(map[string]domain.Gate, len(pipeline))
+	}
 
-	// Reset the re-entered gate.
+	// Reset status honors the workflow so a light/free change never becomes
+	// blocked by a re-entry (gates that never gated stay non-blocking).
+	reset := resetStatus(gf.Workflow)
+
+	// Reset the re-entered gate: it will be re-drafted and re-reviewed from
+	// scratch, so clear its approval, review, and any prior supersede flag.
 	from := gf.Gates[fromKey]
-	from.Status = domain.GateStatusPending
+	from.Status = reset
 	from.ApprovedAt = nil
+	from.Superseded = false
+	from.SupersededBy = nil
+	from.Review = domain.ReviewRecord{}
 	gf.Gates[fromKey] = from
 
-	// Supersede everything downstream.
+	// Supersede everything downstream and reset it for re-drafting.
 	var superseded []string
 	for _, g := range pipeline[fromIdx+1:] {
 		gate := gf.Gates[g.key]
 		gate.Superseded = true
 		gate.SupersededBy = ptr(fromKey)
-		gate.Status = domain.GateStatusPending
+		gate.Status = reset
 		gate.ApprovedAt = nil
+		gate.Review = domain.ReviewRecord{}
 		gf.Gates[g.key] = gate
 		superseded = append(superseded, g.key)
 	}
@@ -226,32 +238,60 @@ func (s *Store) ReEnter(fromKey, reason string) (domain.GatesFile, error) {
 	}
 	gf.History = append(gf.History, ev)
 
-	// Persist meta.json first, then append the durable jsonl line.
-	if err := s.Save(gf); err != nil {
+	// Append the durable jsonl line first (it is the source log), then persist
+	// meta.json — so a failure never leaves meta claiming an event with no line.
+	if err := s.appendHistoryLine(ev); err != nil {
 		return domain.GatesFile{}, err
 	}
-	if err := s.appendHistoryLine(ev); err != nil {
+	gf.UpdatedAt = s.stamp()
+	if err := s.Save(gf); err != nil {
 		return domain.GatesFile{}, err
 	}
 	return gf, nil
 }
 
+// resetStatus returns the status a gate should hold after a re-entry, given the
+// change's workflow. Light/free gates stay skipped (never block); strict gates
+// return to pending so they must be re-approved.
+func resetStatus(workflow domain.WorkflowLevel) domain.GateStatus {
+	if workflow == domain.WorkflowLight || workflow == domain.WorkflowFree {
+		return domain.GateStatusSkipped
+	}
+	return domain.GateStatusPending
+}
+
 // Save writes meta.json and refreshes the human-readable review.md mirror.
+// Callers are expected to have stamped gf.UpdatedAt (see Init/SetGate/ReEnter)
+// so the returned struct matches what is persisted. Writes are atomic
+// (temp file + rename) so a crash mid-write cannot truncate the source of truth.
 func (s *Store) Save(gf domain.GatesFile) error {
 	if err := os.MkdirAll(s.dir(), 0755); err != nil {
 		return fmt.Errorf("creating gate state dir %s: %w", s.dir(), err)
 	}
-	gf.UpdatedAt = s.stamp()
 
 	data, err := json.MarshalIndent(gf, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshaling gate state: %w", err)
 	}
-	if err := os.WriteFile(s.metaPath(), data, 0644); err != nil {
+	if err := writeFileAtomic(s.metaPath(), data); err != nil {
 		return fmt.Errorf("writing gate state %s: %w", s.metaPath(), err)
 	}
-	if err := os.WriteFile(s.reviewPath(), []byte(renderReview(gf)), 0644); err != nil {
+	if err := writeFileAtomic(s.reviewPath(), []byte(renderReview(gf))); err != nil {
 		return fmt.Errorf("writing review mirror %s: %w", s.reviewPath(), err)
+	}
+	return nil
+}
+
+// writeFileAtomic writes data to a temp file in the same directory then renames
+// it over the target, so a reader never observes a partially written file.
+func writeFileAtomic(path string, data []byte) error {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
 	}
 	return nil
 }
@@ -269,6 +309,9 @@ func (s *Store) SetGate(key string, status domain.GateStatus, verdict *domain.Ve
 	gf, err := s.Load()
 	if err != nil {
 		return domain.GatesFile{}, err
+	}
+	if gf.Gates == nil {
+		gf.Gates = make(map[string]domain.Gate, len(pipeline))
 	}
 
 	g := gf.Gates[key]
@@ -290,6 +333,7 @@ func (s *Store) SetGate(key string, status domain.GateStatus, verdict *domain.Ve
 	gf.CurrentGate = key
 	gf.PipelineState = string(meta.phase)
 
+	gf.UpdatedAt = s.stamp()
 	if err := s.Save(gf); err != nil {
 		return domain.GatesFile{}, err
 	}
@@ -339,6 +383,7 @@ func (s *Store) AppendHistory(ev domain.ReEntryEvent) error {
 		return err
 	}
 	gf.History = append(gf.History, ev)
+	gf.UpdatedAt = s.stamp()
 	return s.Save(gf)
 }
 

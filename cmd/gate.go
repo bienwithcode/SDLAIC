@@ -149,6 +149,9 @@ func runGateReentry(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	gf, err := store.ReEnter(gateReentryFrom, gateReentryWhy)
+	if errors.Is(err, domain.ErrGateStateNotFound) {
+		return fmt.Errorf("no gate state yet for this change; run `sdlaic gate set` first: %w", err)
+	}
 	if err != nil {
 		return err
 	}

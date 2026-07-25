@@ -91,7 +91,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 			// The spec artifact is directory-based: specs/<capability>/spec.md.
 			specsDir := filepath.Join(changePath, "specs")
 			_ = filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
-				if err == nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
+				if err == nil && !info.IsDir() && strings.EqualFold(info.Name(), "spec.md") {
 					data, err := os.ReadFile(path)
 					if err == nil {
 						relPath, _ := filepath.Rel(changePath, path)
@@ -135,11 +135,13 @@ func runValidate(cmd *cobra.Command, args []string) error {
 		for _, at := range domain.OrderedArtifactTypes() {
 			populated := false
 
+			label := at.FileName()
 			if at == domain.ArtifactSpec {
 				// The spec artifact is directory-based: specs/<capability>/spec.md.
+				label = "specs/<capability>/spec.md"
 				specsDir := filepath.Join(changePath, "specs")
 				_ = filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
-					if err == nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
+					if err == nil && !info.IsDir() && strings.EqualFold(info.Name(), "spec.md") {
 						data, err := os.ReadFile(path)
 						if err == nil && strings.TrimSpace(string(data)) != "" {
 							populated = true
@@ -156,7 +158,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 			}
 
 			if !populated {
-				violations = append(violations, fmt.Sprintf("%s: missing or empty (strict mode)", at.FileName()))
+				violations = append(violations, fmt.Sprintf("%s: missing or empty (strict mode)", label))
 			}
 		}
 	}

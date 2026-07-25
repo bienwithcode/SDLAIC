@@ -212,6 +212,62 @@ func TestReEnterSupersedesDownstream(t *testing.T) {
 	assert.Equal(t, []string{"design", "tasks"}, gf.History[0].SupersededGates)
 }
 
+func TestReEnterLightKeepsGatesSkipped(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowFree)
+	require.NoError(t, err)
+
+	gf, err := s.ReEnter("proposal", "changed")
+	require.NoError(t, err)
+	// In free/light mode, re-entry must NOT introduce a blocking (pending) status.
+	for _, k := range GateKeys() {
+		assert.Equal(t, domain.GateStatusSkipped, gf.Gates[k].Status, "gate %s must stay skipped", k)
+	}
+}
+
+func TestReEnterClearsSupersededOnReentryPoint(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	// First re-entry from proposal marks spec/design/tasks superseded.
+	_, err = s.ReEnter("proposal", "first")
+	require.NoError(t, err)
+	// Second re-entry now targets spec — it must no longer read as superseded.
+	gf, err := s.ReEnter("spec", "second")
+	require.NoError(t, err)
+
+	assert.False(t, gf.Gates["spec"].Superseded, "re-entry point must not stay superseded")
+	assert.Nil(t, gf.Gates["spec"].SupersededBy)
+	assert.Equal(t, domain.GateStatusPending, gf.Gates["spec"].Status)
+}
+
+func TestReEnterClearsStaleReview(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+	approve := domain.VerdictApprove
+	_, err = s.SetGate("design", domain.GateStatusApproved, &approve, false)
+	require.NoError(t, err)
+
+	gf, err := s.ReEnter("proposal", "scope changed")
+	require.NoError(t, err)
+	// design was superseded and reset — its stale APPROVE verdict must be cleared.
+	assert.Equal(t, domain.Verdict(""), gf.Gates["design"].Review.Verdict)
+}
+
+func TestSetGateSurvivesNullGatesMap(t *testing.T) {
+	s := newTestStore(t)
+	// Write a meta.json with a null gates map (e.g. hand-edited / migrated).
+	require.NoError(t, os.MkdirAll(s.dir(), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(s.dir(), "meta.json"),
+		[]byte(`{"schema_version":1,"change":"CHG-1","workflow":"strict","gates":null}`), 0644))
+
+	gf, err := s.SetGate("proposal", domain.GateStatusApproved, nil, false)
+	require.NoError(t, err) // must not panic on a nil map
+	assert.Equal(t, domain.GateStatusApproved, gf.Gates["proposal"].Status)
+}
+
 func TestReEnterUnknownKey(t *testing.T) {
 	s := newTestStore(t)
 	_, err := s.Init(domain.WorkflowStrict)

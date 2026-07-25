@@ -74,6 +74,18 @@ func TestAnalyzeGatedPhase_LightNeverBlocks(t *testing.T) {
 	assert.False(t, res.Blocked, "light workflow gates default to skipped")
 }
 
+func TestAnalyzeGatedPhase_LightNeverBlocksEvenWithPendingGates(t *testing.T) {
+	changeDir := proposedChange(t)
+	store := newStore(t)
+	// Seed strict (pending gates) then evaluate under light — must not block.
+	_, err := store.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	res, err := AnalyzeGatedPhase(changeDir, store, domain.WorkflowLight)
+	require.NoError(t, err)
+	assert.False(t, res.Blocked, "light must never block regardless of persisted pending gates")
+}
+
 func TestAnalyzeGatedPhase_StrictMissingMetaBlocks(t *testing.T) {
 	changeDir := proposedChange(t)
 	store := newStore(t) // no meta.json written

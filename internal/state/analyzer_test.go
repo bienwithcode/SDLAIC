@@ -108,6 +108,36 @@ func TestAnalyzePhase_AllPhases(t *testing.T) {
 	}
 }
 
+// --- Spec directory detection (only spec.md counts) ---
+
+func TestAnalyzeArtifacts_SpecOnlyCountsSpecMd(t *testing.T) {
+	// A stray README under specs/ must NOT satisfy the spec artifact.
+	changeDir := setupChangeDir(t, map[string]string{
+		"context.md":           "# Context\n\nReal content.",
+		"proposal.md":          "# Proposal\n\nReal proposal.",
+		"specs/core/README.md": "# Readme\n\nUnrelated prose that should not count.",
+	})
+	artifacts, err := AnalyzeArtifacts(changeDir)
+	require.NoError(t, err)
+	assert.False(t, artifacts["spec"].Exists, "README.md under specs/ must not satisfy the spec artifact")
+
+	phase, err := AnalyzePhase(changeDir)
+	require.NoError(t, err)
+	assert.Equal(t, domain.PhaseProposed, phase, "stray specs/ markdown must not advance to SPECIFIED")
+}
+
+func TestAnalyzeArtifacts_SpecMdCounts(t *testing.T) {
+	changeDir := setupChangeDir(t, map[string]string{
+		"context.md":         "# Context\n\nReal content.",
+		"proposal.md":        "# Proposal\n\nReal proposal.",
+		"specs/core/spec.md": "# Spec\n\nReal requirement.",
+	})
+	artifacts, err := AnalyzeArtifacts(changeDir)
+	require.NoError(t, err)
+	assert.True(t, artifacts["spec"].Exists)
+	assert.True(t, artifacts["spec"].Populated)
+}
+
 // --- Edge case tests ---
 
 func TestAnalyzePhase_EmptyFiles(t *testing.T) {

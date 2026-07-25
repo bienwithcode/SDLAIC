@@ -37,6 +37,12 @@ func AnalyzeGatedPhase(changeDir string, store *gatestate.Store, workflow domain
 
 	res := GatedResult{Phase: phase}
 
+	// Light/free workflows never block progression, regardless of any persisted
+	// gate status (e.g. a change born strict then switched, or re-entered).
+	if workflow == domain.WorkflowLight || workflow == domain.WorkflowFree {
+		return res, nil
+	}
+
 	gateKey, hasGate := phaseGate[phase]
 	if !hasGate {
 		return res, nil // EMPTY/CONTEXT/IMPLEMENTED have no gate to clear

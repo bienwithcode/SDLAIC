@@ -179,8 +179,10 @@ func readFileContent(path string) (string, error) {
 	return string(data), nil
 }
 
-// readSpecsDir recursively finds and reads all .md files in the specs directory.
-// Returns combined content of all markdown files found, or error.
+// readSpecsDir recursively finds and reads the per-capability spec files in the
+// specs directory. Only files named spec.md count (specs/<capability>/spec.md) —
+// unrelated markdown (README.md, notes.md) must not satisfy the spec artifact.
+// Returns combined content of all spec.md files found, or error.
 func readSpecsDir(specsDir string) (string, bool, error) {
 	info, err := os.Stat(specsDir)
 	if err != nil {
@@ -197,7 +199,7 @@ func readSpecsDir(specsDir string) (string, bool, error) {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
+		if !info.IsDir() && strings.EqualFold(info.Name(), "spec.md") {
 			data, err := os.ReadFile(path)
 			if err != nil {
 				return err
