@@ -174,7 +174,7 @@ Gap Manifest Cross-link:
 | "Scope: what about multi-team members?" | Team Manager | edge case: multi-team membership |
 ```
 
-This step's output is consumed downstream by `grillme` (anchors questions) and `brainstorm` (informs design trade-offs). It is **not** copied into `spec.md`.
+This step's output is consumed downstream by `grillme` (anchors questions) and the `proposal` / `spec` / `design` skills (inform scope, behavior, and design trade-offs). It is **not** copied into `spec.md`.
 
 ### Step 4: Initialize SDLAIC Change
 
