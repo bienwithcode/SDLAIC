@@ -356,8 +356,27 @@ type Gate struct {
 	Review       ReviewRecord `json:"review"`
 	Attempts     int          `json:"attempts"`
 	ApprovedAt   *string      `json:"approved_at"`
+	SkippedAt    *string      `json:"skipped_at,omitempty"` // set only on an EXPLICIT skip (gate set --status skipped); nil for light/free auto-skip
 	Superseded   bool         `json:"superseded"`
 	SupersededBy *string      `json:"superseded_by,omitempty"`
+}
+
+// IsPassingFor reports whether this gate unblocks its phase under the given
+// workflow. light/free never block. Under strict, an approved gate passes and an
+// explicitly-skipped gate (SkippedAt set) passes, but a gate that was auto-skipped
+// as a light/free default (SkippedAt nil) does NOT pass — otherwise switching a
+// change into strict would silently trust artifacts that were never reviewed.
+func (g Gate) IsPassingFor(workflow WorkflowLevel) bool {
+	if workflow == WorkflowLight || workflow == WorkflowFree {
+		return true
+	}
+	if g.Status == GateStatusApproved {
+		return true
+	}
+	if g.Status == GateStatusSkipped {
+		return g.SkippedAt != nil
+	}
+	return false
 }
 
 // GatesFile is the machine-readable gate state for one change — the source of

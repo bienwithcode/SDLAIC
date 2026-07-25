@@ -104,7 +104,7 @@ func runGateStatus(cmd *cobra.Command, args []string) error {
 	if gateJSON {
 		return printJSON(cmd, gf)
 	}
-	return printGateHuman(cmd, gf)
+	return printGateHuman(cmd, gf, cfg.Workflow)
 }
 
 func runGateSet(cmd *cobra.Command, args []string) error {
@@ -160,15 +160,15 @@ func runGateReentry(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func printGateHuman(cmd *cobra.Command, gf domain.GatesFile) error {
+func printGateHuman(cmd *cobra.Command, gf domain.GatesFile, workflow domain.WorkflowLevel) error {
 	fmt.Fprintf(cmd.OutOrStdout(), "Change:    %s\n", gf.Change)
-	fmt.Fprintf(cmd.OutOrStdout(), "Workflow:  %s\n", gf.Workflow)
+	fmt.Fprintf(cmd.OutOrStdout(), "Workflow:  %s\n", workflow)
 	fmt.Fprintf(cmd.OutOrStdout(), "Pipeline:  %s\n", gf.PipelineState)
 	fmt.Fprintf(cmd.OutOrStdout(), "\nGates:\n")
 	for _, key := range gatestate.GateKeys() {
 		g := gf.Gates[key]
 		marker := " "
-		if g.Status.IsPassing() {
+		if g.IsPassingFor(workflow) {
 			marker = "✓"
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %-9s %-10s (attempts %d)\n", marker, key, g.Status, g.Attempts)

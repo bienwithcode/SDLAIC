@@ -53,7 +53,7 @@ func AnalyzeGatedPhase(changeDir string, store *gatestate.Store, workflow domain
 		return GatedResult{}, fmt.Errorf("loading gate state: %w", err)
 	}
 
-	if !gf.Gates[gateKey].Status.IsPassing() {
+	if !gf.Gates[gateKey].IsPassingFor(workflow) {
 		res.Blocked = true
 		res.BlockedAt = gateKey
 	}

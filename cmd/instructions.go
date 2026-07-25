@@ -15,7 +15,7 @@ var instructionsCmd = &cobra.Command{
 	Long: `Reads the embedded template for the specified artifact type and
 prints it to stdout as raw markdown.
 
-Available types: context, proposal, specs, design, tasks`,
+Available types: context, proposal, spec, design, tasks`,
 	Args: cobra.ExactArgs(1),
 	RunE: runInstructions,
 }

@@ -288,3 +288,64 @@ func TestErrorsIsWiring(t *testing.T) {
 	// sanity: ErrGateStateNotFound is a real sentinel
 	assert.True(t, errors.Is(domain.ErrGateStateNotFound, domain.ErrGateStateNotFound))
 }
+
+func TestSetGate_SkippedStampsSkippedAt(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	gf, err := s.SetGate("proposal", domain.GateStatusSkipped, nil, false)
+	require.NoError(t, err)
+
+	require.NotNil(t, gf.Gates["proposal"].SkippedAt, "explicit skip must stamp SkippedAt")
+	assert.Equal(t, "2026-07-25T10:00:00Z", *gf.Gates["proposal"].SkippedAt)
+}
+
+func TestSetGate_NonSkippedClearsSkippedAt(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	_, err = s.SetGate("proposal", domain.GateStatusSkipped, nil, false)
+	require.NoError(t, err)
+	// Transition to approved: the stale skip marker must clear so the gate is no
+	// longer treated as an explicit skip.
+	gf, err := s.SetGate("proposal", domain.GateStatusApproved, nil, false)
+	require.NoError(t, err)
+	assert.Nil(t, gf.Gates["proposal"].SkippedAt)
+}
+
+func TestSetGate_RejectsMismatchedStatusVerdict(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	reject := domain.VerdictReject
+	_, err = s.SetGate("proposal", domain.GateStatusApproved, &reject, false)
+	assert.Error(t, err, "approved status with a REJECT verdict must be rejected")
+}
+
+func TestSetGate_RejectsSkippedWithVerdict(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	approve := domain.VerdictApprove
+	_, err = s.SetGate("proposal", domain.GateStatusSkipped, &approve, false)
+	assert.Error(t, err, "skipped status with a verdict must be rejected")
+}
+
+func TestReEnter_ClearsSkippedAt(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	// Explicitly skip spec, then re-enter upstream at proposal.
+	gfSkip, err := s.SetGate("spec", domain.GateStatusSkipped, nil, false)
+	require.NoError(t, err)
+	require.NotNil(t, gfSkip.Gates["spec"].SkippedAt)
+
+	gf, err := s.ReEnter("proposal", "scope changed")
+	require.NoError(t, err)
+	assert.Nil(t, gf.Gates["spec"].SkippedAt, "a reset gate must clear its skip marker")
+}

@@ -115,3 +115,30 @@ func TestGateStatus_Human(t *testing.T) {
 	assert.Contains(t, output, "proposal")
 	assert.Contains(t, output, "GATE-TEST")
 }
+
+// TestGateStatus_StrictBlocksAfterLightInit exercises the headline B1 fix
+// end-to-end. Drafted under light, the first `gate set` lazily runs Init(light)
+// which AUTO-skips every gate; proposal is then explicitly marked skipped.
+// After tightening to strict: proposal (explicit skip) still passes, but the
+// auto-skipped gates (spec/design/tasks — never reviewed) must read as BLOCKED.
+func TestGateStatus_StrictBlocksAfterLightInit(t *testing.T) {
+	initGateWorkspace(t)
+
+	_, err := ExecuteCommand(rootCmd, "config", "set", "workflow", "light")
+	require.NoError(t, err)
+	resetGateFlags()
+	_, err = ExecuteCommand(rootCmd, "gate", "set", "--phase", "proposal", "--status", "skipped")
+	require.NoError(t, err)
+
+	resetGateFlags()
+	_, err = ExecuteCommand(rootCmd, "config", "set", "workflow", "strict")
+	require.NoError(t, err)
+
+	resetGateFlags()
+	output, err := ExecuteCommand(rootCmd, "gate", "status")
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "[✓] proposal", "explicit skip survives into strict")
+	assert.Contains(t, output, "[ ] spec", "auto-skipped gate must block under strict")
+	assert.NotContains(t, output, "[✓] spec", "auto-skipped gate must not pass under strict")
+}

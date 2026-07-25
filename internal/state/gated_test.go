@@ -64,6 +64,24 @@ func TestAnalyzeGatedPhase_SkippedUnblocks(t *testing.T) {
 	assert.False(t, res.Blocked)
 }
 
+// TestAnalyzeGatedPhase_AutoSkipFromLightBlocksUnderStrict is the regression test
+// for the silent-bypass bug: a change born under light/free has all gates
+// auto-skipped (SkippedAt nil). When the workspace is later switched to strict,
+// those auto-skipped gates must NOT count as passing — strict must restore
+// review pressure instead of silently trusting unreviewed artifacts.
+func TestAnalyzeGatedPhase_AutoSkipFromLightBlocksUnderStrict(t *testing.T) {
+	changeDir := proposedChange(t)
+	store := newStore(t)
+	_, err := store.Init(domain.WorkflowLight) // auto-skips every gate
+	require.NoError(t, err)
+
+	res, err := AnalyzeGatedPhase(changeDir, store, domain.WorkflowStrict)
+	require.NoError(t, err)
+	assert.Equal(t, domain.PhaseProposed, res.Phase)
+	assert.True(t, res.Blocked, "auto-skipped gate from light must block under strict")
+	assert.Equal(t, "proposal", res.BlockedAt)
+}
+
 func TestAnalyzeGatedPhase_LightNeverBlocks(t *testing.T) {
 	changeDir := proposedChange(t)
 	store := newStore(t) // no meta.json written

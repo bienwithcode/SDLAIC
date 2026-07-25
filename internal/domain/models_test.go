@@ -288,6 +288,29 @@ func TestGateStatusIsPassing(t *testing.T) {
 	}
 }
 
+func TestGateIsPassingFor(t *testing.T) {
+	stamp := "2026-07-25T10:00:00Z"
+	tests := []struct {
+		name     string
+		gate     Gate
+		workflow WorkflowLevel
+		want     bool
+	}{
+		{"approved under strict", Gate{Status: GateStatusApproved}, WorkflowStrict, true},
+		{"explicit skip under strict", Gate{Status: GateStatusSkipped, SkippedAt: &stamp}, WorkflowStrict, true},
+		{"auto skip under strict (the bug)", Gate{Status: GateStatusSkipped}, WorkflowStrict, false},
+		{"pending under strict", Gate{Status: GateStatusPending}, WorkflowStrict, false},
+		{"failed under strict", Gate{Status: GateStatusFailed}, WorkflowStrict, false},
+		{"pending under light never blocks", Gate{Status: GateStatusPending}, WorkflowLight, true},
+		{"failed under free never blocks", Gate{Status: GateStatusFailed}, WorkflowFree, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.gate.IsPassingFor(tt.workflow))
+		})
+	}
+}
+
 func TestParseSeverity(t *testing.T) {
 	tests := []struct {
 		input   string

@@ -209,6 +209,7 @@ func (s *Store) ReEnter(fromKey, reason string) (domain.GatesFile, error) {
 	from := gf.Gates[fromKey]
 	from.Status = reset
 	from.ApprovedAt = nil
+	from.SkippedAt = nil
 	from.Superseded = false
 	from.SupersededBy = nil
 	from.Review = domain.ReviewRecord{}
@@ -222,6 +223,7 @@ func (s *Store) ReEnter(fromKey, reason string) (domain.GatesFile, error) {
 		gate.SupersededBy = ptr(fromKey)
 		gate.Status = reset
 		gate.ApprovedAt = nil
+		gate.SkippedAt = nil
 		gate.Review = domain.ReviewRecord{}
 		gf.Gates[g.key] = gate
 		superseded = append(superseded, g.key)
@@ -306,6 +308,14 @@ func (s *Store) SetGate(key string, status domain.GateStatus, verdict *domain.Ve
 		return domain.GatesFile{}, fmt.Errorf("unknown gate %q; valid: %v", key, GateKeys())
 	}
 
+	// A verdict implies exactly one lifecycle status; reject contradictions so a
+	// rejecting verdict can never be persisted alongside an approving status.
+	if verdict != nil && status != verdict.ToGateStatus() {
+		return domain.GatesFile{}, fmt.Errorf(
+			"gate status %q is inconsistent with verdict %q (verdict implies %q)",
+			status, *verdict, verdict.ToGateStatus())
+	}
+
 	gf, err := s.Load()
 	if err != nil {
 		return domain.GatesFile{}, err
@@ -318,6 +328,11 @@ func (s *Store) SetGate(key string, status domain.GateStatus, verdict *domain.Ve
 	g.Phase = meta.phase
 	g.Artifact = meta.artifact
 	g.Status = status
+	if status == domain.GateStatusSkipped {
+		g.SkippedAt = ptr(s.stamp()) // mark as an EXPLICIT skip so it survives into strict
+	} else {
+		g.SkippedAt = nil // clear any stale marker on non-skip transitions
+	}
 	if incAttempt {
 		g.Attempts++
 	}
