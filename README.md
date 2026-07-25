@@ -85,8 +85,6 @@ Gate verdicts are stored **outside your repo** (see [Gate State](#gate-state)), 
 | **review** (code) | Final audit | Two-pass compliance + quality audit of the diff → `review.md` |
 
 > `grillme` and `review` are **optional** and toggled by [workflow level](#workflow-levels): `strict` runs both; `light`/`free` skip them (draft-only fast path). The draft skill is always mandatory.
->
-> The old monolithic `brainstorm` skill (which emitted proposal + spec + design in one pass) is **deprecated** — it caused generative overreach. Use `proposal` → `spec` → `design` instead.
 
 ---
 
@@ -105,7 +103,7 @@ Each phase writes one artifact under `.sdlaic/changes/<change-name>/`:
 └── tasks.md             # Ordered TDD tasks by subsystem milestone (checkbox syntax)
 ```
 
-Socratic-challenge output is recorded in a `## Challenge & Resolution Log` section **inside** each artifact (there is no separate `rationale.md`).
+Socratic-challenge output is recorded in a `## Challenge & Resolution Log` section **inside** each artifact.
 
 ---
 
