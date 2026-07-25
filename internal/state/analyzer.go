@@ -16,8 +16,9 @@ import (
 // artifact files exist and are populated. Phases progress in order:
 // EMPTY → CONTEXT → PROPOSED → SPECIFIED → DESIGNED → PLANNED → IMPLEMENTED
 //
-// This is artifact-only detection. For gated progression (which also requires a
-// passing gate in ~/.sdlaic/state/meta.json), see AnalyzeGatedPhase.
+// This is artifact-only detection. Gate verdicts are tracked separately via
+// `sdlaic gate status`; the `enforcer` skill couples artifact presence with
+// gate status.
 func AnalyzePhase(changeDir string) (domain.Phase, error) {
 	// Verify the change directory exists
 	info, err := os.Stat(changeDir)
@@ -199,7 +200,7 @@ func readSpecsDir(specsDir string) (string, bool, error) {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() && strings.EqualFold(info.Name(), "spec.md") {
+		if !info.IsDir() && IsCapabilitySpec(specsDir, path) {
 			data, err := os.ReadFile(path)
 			if err != nil {
 				return err
@@ -215,4 +216,17 @@ func readSpecsDir(specsDir string) (string, bool, error) {
 	}
 
 	return combined.String(), hasFiles, nil
+}
+
+// IsCapabilitySpec reports whether path is a spec leaf nested under exactly one
+// capability directory beneath specsDir — i.e. specs/<capability>/spec.md. It
+// rejects specs/spec.md (no capability dir) and specs/a/b/spec.md (nested too
+// deep), matching the documented capability-spec contract.
+func IsCapabilitySpec(specsDir, path string) bool {
+	rel, err := filepath.Rel(specsDir, path)
+	if err != nil {
+		return false
+	}
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	return len(parts) == 2 && parts[0] != "" && strings.EqualFold(parts[1], "spec.md")
 }

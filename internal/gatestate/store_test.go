@@ -349,3 +349,57 @@ func TestReEnter_ClearsSkippedAt(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, gf.Gates["spec"].SkippedAt, "a reset gate must clear its skip marker")
 }
+
+func TestSetGate_NonApprovedClearsApprovedAt(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	_, err = s.SetGate("proposal", domain.GateStatusApproved, nil, false)
+	require.NoError(t, err)
+
+	// Transition to a non-approved status: the stale approval timestamp must clear.
+	gf, err := s.SetGate("proposal", domain.GateStatusFailed, nil, false)
+	require.NoError(t, err)
+	assert.Equal(t, domain.GateStatusFailed, gf.Gates["proposal"].Status)
+	assert.Nil(t, gf.Gates["proposal"].ApprovedAt, "non-approved status must clear approved_at")
+}
+
+func TestSetGate_NoVerdictWipesStaleReview(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	approve := domain.VerdictApprove
+	_, err = s.SetGate("proposal", domain.GateStatusApproved, &approve, false)
+	require.NoError(t, err)
+
+	// Re-transition without a verdict: the stale APPROVE verdict + review timestamp
+	// (and the approval) must all clear, so the persisted record is not contradictory.
+	gf, err := s.SetGate("proposal", domain.GateStatusPending, nil, false)
+	require.NoError(t, err)
+	g := gf.Gates["proposal"]
+	assert.Equal(t, domain.GateStatusPending, g.Status)
+	assert.Equal(t, domain.Verdict(""), g.Review.Verdict, "stale verdict must be wiped when no verdict is supplied")
+	assert.Nil(t, g.Review.ReviewedAt)
+	assert.Nil(t, g.ApprovedAt)
+}
+
+func TestSetGate_FailedToApprovedNoVerdictClearsStaleReject(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	reject := domain.VerdictReject
+	_, err = s.SetGate("design", domain.GateStatusFailed, &reject, false)
+	require.NoError(t, err)
+
+	// Approve without supplying a verdict: the stale REJECT must clear and the
+	// approval stamps fresh — no approved gate may carry a rejecting verdict.
+	gf, err := s.SetGate("design", domain.GateStatusApproved, nil, false)
+	require.NoError(t, err)
+	g := gf.Gates["design"]
+	assert.Equal(t, domain.GateStatusApproved, g.Status)
+	require.NotNil(t, g.ApprovedAt)
+	assert.Equal(t, domain.Verdict(""), g.Review.Verdict, "stale rejecting verdict must not survive an approval")
+}

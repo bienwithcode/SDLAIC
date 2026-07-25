@@ -339,9 +339,13 @@ func (s *Store) SetGate(key string, status domain.GateStatus, verdict *domain.Ve
 	if verdict != nil {
 		g.Review.Verdict = *verdict
 		g.Review.ReviewedAt = ptr(s.stamp())
+	} else {
+		g.Review = domain.ReviewRecord{} // no verdict ⇒ wipe any stale review record (matches ReEnter)
 	}
 	if status == domain.GateStatusApproved {
 		g.ApprovedAt = ptr(s.stamp())
+	} else {
+		g.ApprovedAt = nil // clear stale approval on non-approved transitions
 	}
 	gf.Gates[key] = g
 

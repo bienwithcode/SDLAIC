@@ -138,6 +138,43 @@ func TestAnalyzeArtifacts_SpecMdCounts(t *testing.T) {
 	assert.True(t, artifacts["spec"].Populated)
 }
 
+func TestIsCapabilitySpec(t *testing.T) {
+	specsDir := filepath.Join("change", "specs")
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{"capability spec", filepath.Join(specsDir, "auth", "spec.md"), true},
+		{"case-insensitive leaf", filepath.Join(specsDir, "auth", "SPEC.MD"), true},
+		{"no capability dir", filepath.Join(specsDir, "spec.md"), false},
+		{"nested too deep", filepath.Join(specsDir, "a", "b", "spec.md"), false},
+		{"unrelated leaf", filepath.Join(specsDir, "auth", "README.md"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsCapabilitySpec(specsDir, tt.path))
+		})
+	}
+}
+
+func TestAnalyzePhase_RejectsMalformedSpecPath(t *testing.T) {
+	// specs/spec.md (no capability dir) violates the specs/<capability>/spec.md
+	// contract and must NOT satisfy the spec artifact or advance the phase.
+	changeDir := setupChangeDir(t, map[string]string{
+		"context.md":    "# Context\n\nReal content.",
+		"proposal.md":   "# Proposal\n\nReal proposal.",
+		"specs/spec.md": "# Spec\n\nReal requirement.",
+	})
+	artifacts, err := AnalyzeArtifacts(changeDir)
+	require.NoError(t, err)
+	assert.False(t, artifacts["spec"].Exists, "specs/spec.md must not satisfy the spec artifact")
+
+	phase, err := AnalyzePhase(changeDir)
+	require.NoError(t, err)
+	assert.Equal(t, domain.PhaseProposed, phase, "malformed spec path must not advance to SPECIFIED")
+}
+
 // --- Edge case tests ---
 
 func TestAnalyzePhase_EmptyFiles(t *testing.T) {

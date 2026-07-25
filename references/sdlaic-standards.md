@@ -15,6 +15,11 @@ Gate verdicts live OUTSIDE the project repo, in the global state store:
 └── history.jsonl  # append-only re-entry / follow-up events
 ```
 
+> **Two `review.md` files, two purposes.** The global `review.md` above is a
+> machine-generated mirror of gate verdicts, written by the CLI. The pre-PR code
+> audit produced by `skills/review` is a *separate* artifact written to
+> `.sdlaic/changes/<change-name>/review.md` inside the project repo.
+
 ## Phase-Gated Flow
 
 The plugin manages phase-gated micro-loops on top of SDLAIC. The CLI does NOT own
@@ -61,7 +66,7 @@ without both.
 | DESIGNED | `design.md` | design | Technical architecture |
 | PLANNED | `tasks.md` | tasks | Ordered TDD tasks by subsystem milestone |
 | IMPLEMENTED | Committed code | — | Source changes |
-| (audit) | `review.md` (in state store) | — | Final pre-PR code audit |
+| (audit) | `.sdlaic/changes/<change-name>/review.md` | — | Final pre-PR code audit |
 
 ### Full Artifact Structure
 

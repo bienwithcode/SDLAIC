@@ -119,6 +119,30 @@ func TestValidate_SpecsDirectory(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestValidate_StrictRejectsSpecWithoutCapabilityDir(t *testing.T) {
+	resetStatusFlags()
+	resetValidateFlags()
+	dir := initWorkspaceForTest(t)
+
+	_, err := ExecuteCommand(rootCmd, "new", "change", "MALFORMED-SPEC")
+	require.NoError(t, err)
+
+	changeDir := filepath.Join(dir, ".sdlaic", "changes", "MALFORMED-SPEC")
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "context.md"), []byte("# Context\nReal context."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "proposal.md"), []byte("# Proposal\nReal proposal."), 0644))
+	// Malformed spec path: specs/spec.md (no capability dir). Contract requires
+	// specs/<capability>/spec.md, so strict validation must reject it as missing.
+	require.NoError(t, os.MkdirAll(filepath.Join(changeDir, "specs"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "specs", "spec.md"), []byte("# Spec\nReal requirement."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\nReal design."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n- [ ] Task 1"), 0644))
+
+	resetStatusFlags()
+	resetValidateFlags()
+	_, err = ExecuteCommand(rootCmd, "validate", "--strict")
+	assert.Error(t, err, "malformed spec path must fail strict validation")
+}
+
 func TestValidate_NoWorkspace(t *testing.T) {
 	resetStatusFlags()
 	resetValidateFlags()

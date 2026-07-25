@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/bienwithcode/SDLAIC/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/state"
 	"github.com/bienwithcode/SDLAIC/internal/storage"
 	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
@@ -91,7 +92,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 			// The spec artifact is directory-based: specs/<capability>/spec.md.
 			specsDir := filepath.Join(changePath, "specs")
 			_ = filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
-				if err == nil && !info.IsDir() && strings.EqualFold(info.Name(), "spec.md") {
+				if err == nil && !info.IsDir() && state.IsCapabilitySpec(specsDir, path) {
 					data, err := os.ReadFile(path)
 					if err == nil {
 						relPath, _ := filepath.Rel(changePath, path)
@@ -141,7 +142,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 				label = "specs/<capability>/spec.md"
 				specsDir := filepath.Join(changePath, "specs")
 				_ = filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
-					if err == nil && !info.IsDir() && strings.EqualFold(info.Name(), "spec.md") {
+					if err == nil && !info.IsDir() && state.IsCapabilitySpec(specsDir, path) {
 						data, err := os.ReadFile(path)
 						if err == nil && strings.TrimSpace(string(data)) != "" {
 							populated = true
