@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -177,6 +179,222 @@ func TestSentinelErrors(t *testing.T) {
 		msg := err.Error()
 		assert.False(t, seen[msg], "duplicate error message: %s", msg)
 		seen[msg] = true
+	}
+}
+
+// --- Gate State Types (T1) ---
+
+func TestParseVerdict(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected Verdict
+		wantErr  bool
+	}{
+		{"APPROVE", VerdictApprove, false},
+		{"REQUEST_CHANGES", VerdictRequestChanges, false},
+		{"REJECT", VerdictReject, false},
+		{"PENDING", VerdictPending, false},
+		{"approve", "", true}, // case-sensitive
+		{"MAYBE", "", true},
+		{"", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := ParseVerdict(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Empty(t, got)
+				assert.True(t, errors.Is(err, ErrInvalidVerdict), "should wrap ErrInvalidVerdict")
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestValidVerdicts(t *testing.T) {
+	assert.Len(t, ValidVerdicts(), 4)
+}
+
+func TestVerdictToGateStatus(t *testing.T) {
+	tests := []struct {
+		verdict  Verdict
+		expected GateStatus
+	}{
+		{VerdictApprove, GateStatusApproved},
+		{VerdictRequestChanges, GateStatusFailed},
+		{VerdictReject, GateStatusFailed},
+		{VerdictPending, GateStatusReviewing},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.verdict), func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.verdict.ToGateStatus())
+		})
+	}
+}
+
+func TestParseGateStatus(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected GateStatus
+		wantErr  bool
+	}{
+		{"pending", GateStatusPending, false},
+		{"grilling", GateStatusGrilling, false},
+		{"grilled", GateStatusGrilled, false},
+		{"reviewing", GateStatusReviewing, false},
+		{"approved", GateStatusApproved, false},
+		{"failed", GateStatusFailed, false},
+		{"skipped", GateStatusSkipped, false},
+		{"APPROVED", "", true}, // case-sensitive
+		{"done", "", true},
+		{"", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := ParseGateStatus(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.True(t, errors.Is(err, ErrInvalidGateStatus), "should wrap ErrInvalidGateStatus")
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestValidGateStatuses(t *testing.T) {
+	assert.Len(t, ValidGateStatuses(), 7)
+}
+
+func TestGateStatusIsPassing(t *testing.T) {
+	passing := []GateStatus{GateStatusApproved, GateStatusSkipped}
+	blocking := []GateStatus{
+		GateStatusPending, GateStatusGrilling, GateStatusGrilled,
+		GateStatusReviewing, GateStatusFailed,
+	}
+	for _, s := range passing {
+		assert.True(t, s.IsPassing(), "%s should pass", s)
+	}
+	for _, s := range blocking {
+		assert.False(t, s.IsPassing(), "%s should block", s)
+	}
+}
+
+func TestParseSeverity(t *testing.T) {
+	tests := []struct {
+		input   string
+		want    Severity
+		wantErr bool
+	}{
+		{"CRITICAL", SeverityCritical, false},
+		{"HIGH", SeverityHigh, false},
+		{"MEDIUM", SeverityMedium, false},
+		{"LOW", SeverityLow, false},
+		{"INFO", SeverityInfo, false},
+		{"trivial", "", true},
+		{"", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := ParseSeverity(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.True(t, errors.Is(err, ErrInvalidSeverity), "should wrap ErrInvalidSeverity")
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestGatesFileJSONRoundTrip(t *testing.T) {
+	approvedAt := "2026-07-25T10:00:00Z"
+	gf := GatesFile{
+		SchemaVersion: 1,
+		ProjectHash:   "abc123def456",
+		Change:        "JIRA-789",
+		Workflow:      WorkflowStrict,
+		PipelineState: "PROPOSED",
+		CurrentGate:   "proposal",
+		Gates: map[string]Gate{
+			"proposal": {
+				Phase:    PhaseProposed,
+				Artifact: "proposal.md",
+				Status:   GateStatusApproved,
+				Grill: GrillRecord{
+					Questions:  3,
+					Checklist:  "references/grills/scope-grill.md",
+					ResolvedAt: &approvedAt,
+				},
+				Review: ReviewRecord{
+					Verdict: VerdictApprove,
+					Findings: []Finding{
+						{Severity: SeverityLow, Evidence: "proposal.md:12", Message: "scope table thin"},
+					},
+					Checklist:  "references/reviews/proposal-audit.md",
+					ReviewedAt: &approvedAt,
+				},
+				Attempts:   1,
+				ApprovedAt: &approvedAt,
+			},
+		},
+		History: []ReEntryEvent{
+			{FromPhase: PhaseProposed, Reason: "ticket scope changed", At: approvedAt, SupersededGates: []string{"spec"}},
+		},
+		CreatedAt: approvedAt,
+		UpdatedAt: approvedAt,
+	}
+
+	data, err := json.Marshal(gf)
+	require.NoError(t, err)
+
+	// JSON tags must be snake_case per spec.
+	js := string(data)
+	assert.Contains(t, js, `"schema_version"`)
+	assert.Contains(t, js, `"project_hash"`)
+	assert.Contains(t, js, `"current_gate"`)
+	assert.Contains(t, js, `"approved_at"`)
+
+	var got GatesFile
+	require.NoError(t, json.Unmarshal(data, &got))
+	assert.Equal(t, gf.SchemaVersion, got.SchemaVersion)
+	assert.Equal(t, gf.Change, got.Change)
+	require.Contains(t, got.Gates, "proposal")
+	assert.Equal(t, GateStatusApproved, got.Gates["proposal"].Status)
+	require.NotNil(t, got.Gates["proposal"].ApprovedAt)
+	assert.Equal(t, approvedAt, *got.Gates["proposal"].ApprovedAt)
+	assert.Len(t, got.Gates["proposal"].Review.Findings, 1)
+	assert.Equal(t, SeverityLow, got.Gates["proposal"].Review.Findings[0].Severity)
+	require.Len(t, got.History, 1)
+	assert.Equal(t, []string{"spec"}, got.History[0].SupersededGates)
+}
+
+func TestGateSupersededOmitEmpty(t *testing.T) {
+	// SupersededBy uses omitempty — absent when nil.
+	g := Gate{Phase: PhaseDesigned, Artifact: "design.md", Status: GateStatusPending}
+	data, err := json.Marshal(g)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "superseded_by")
+
+	by := "design"
+	g.Superseded = true
+	g.SupersededBy = &by
+	data, err = json.Marshal(g)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"superseded_by":"design"`)
+}
+
+func TestGateStateSentinels(t *testing.T) {
+	errs := []error{ErrInvalidVerdict, ErrInvalidGateStatus, ErrInvalidSeverity}
+	for _, err := range errs {
+		assert.NotNil(t, err)
 	}
 }
 

@@ -194,6 +194,181 @@ func NewGlobalConfig() GlobalConfig {
 	}
 }
 
+// --- Gate State ---
+//
+// Gate verdicts are persisted in the global state store
+// (~/.sdlaic/state/<project_hash>/<change>/meta.json), never inside the
+// project repo. Verdict records a review's decision; GateStatus records a
+// gate's lifecycle position; the two are related by Verdict.ToGateStatus.
+
+// Verdict is the decision issued by a review (skills/review) for an artifact.
+type Verdict string
+
+const (
+	VerdictApprove        Verdict = "APPROVE"         // unlock next phase
+	VerdictRequestChanges Verdict = "REQUEST_CHANGES" // rework required
+	VerdictReject         Verdict = "REJECT"          // rework required
+	VerdictPending        Verdict = "PENDING"         // not yet decided
+)
+
+// ValidVerdicts returns all supported review verdicts.
+func ValidVerdicts() []Verdict {
+	return []Verdict{VerdictApprove, VerdictRequestChanges, VerdictReject, VerdictPending}
+}
+
+// ParseVerdict converts a string to a Verdict, wrapping ErrInvalidVerdict if invalid.
+func ParseVerdict(s string) (Verdict, error) {
+	v := Verdict(s)
+	for _, valid := range ValidVerdicts() {
+		if v == valid {
+			return v, nil
+		}
+	}
+	return "", fmt.Errorf("invalid verdict %q; valid: APPROVE, REQUEST_CHANGES, REJECT, PENDING: %w", s, ErrInvalidVerdict)
+}
+
+// ToGateStatus maps a review verdict onto the gate lifecycle status it implies:
+// APPROVE → approved, REQUEST_CHANGES|REJECT → failed, PENDING → reviewing.
+func (v Verdict) ToGateStatus() GateStatus {
+	switch v {
+	case VerdictApprove:
+		return GateStatusApproved
+	case VerdictRequestChanges, VerdictReject:
+		return GateStatusFailed
+	default:
+		return GateStatusReviewing
+	}
+}
+
+// GateStatus is the lifecycle position of a single phase gate.
+type GateStatus string
+
+const (
+	GateStatusPending   GateStatus = "pending"
+	GateStatusGrilling  GateStatus = "grilling"
+	GateStatusGrilled   GateStatus = "grilled"
+	GateStatusReviewing GateStatus = "reviewing"
+	GateStatusApproved  GateStatus = "approved"
+	GateStatusFailed    GateStatus = "failed"
+	GateStatusSkipped   GateStatus = "skipped"
+)
+
+// ValidGateStatuses returns all supported gate statuses.
+func ValidGateStatuses() []GateStatus {
+	return []GateStatus{
+		GateStatusPending,
+		GateStatusGrilling,
+		GateStatusGrilled,
+		GateStatusReviewing,
+		GateStatusApproved,
+		GateStatusFailed,
+		GateStatusSkipped,
+	}
+}
+
+// ParseGateStatus converts a string to a GateStatus, wrapping ErrInvalidGateStatus if invalid.
+func ParseGateStatus(s string) (GateStatus, error) {
+	gs := GateStatus(s)
+	for _, valid := range ValidGateStatuses() {
+		if gs == valid {
+			return gs, nil
+		}
+	}
+	return "", fmt.Errorf("invalid gate status %q: %w", s, ErrInvalidGateStatus)
+}
+
+// IsPassing reports whether a gate status unblocks its phase (approved or skipped).
+func (gs GateStatus) IsPassing() bool {
+	return gs == GateStatusApproved || gs == GateStatusSkipped
+}
+
+// Severity classifies a review finding.
+type Severity string
+
+const (
+	SeverityCritical Severity = "CRITICAL"
+	SeverityHigh     Severity = "HIGH"
+	SeverityMedium   Severity = "MEDIUM"
+	SeverityLow      Severity = "LOW"
+	SeverityInfo     Severity = "INFO"
+)
+
+// ValidSeverities returns all supported finding severities.
+func ValidSeverities() []Severity {
+	return []Severity{SeverityCritical, SeverityHigh, SeverityMedium, SeverityLow, SeverityInfo}
+}
+
+// ParseSeverity converts a string to a Severity, wrapping ErrInvalidSeverity if invalid.
+func ParseSeverity(s string) (Severity, error) {
+	sev := Severity(s)
+	for _, valid := range ValidSeverities() {
+		if sev == valid {
+			return sev, nil
+		}
+	}
+	return "", fmt.Errorf("invalid severity %q: %w", s, ErrInvalidSeverity)
+}
+
+// Finding is a single issue raised during a review, carrying primary evidence
+// (a path:line reference or Jira ID) per the Claim Verification Rule.
+type Finding struct {
+	Severity Severity `json:"severity"`
+	Evidence string   `json:"evidence"`
+	Message  string   `json:"message"`
+}
+
+// GrillRecord captures the outcome of a Socratic challenge (skills/grillme) for a gate.
+type GrillRecord struct {
+	Questions  int     `json:"questions"`
+	Checklist  string  `json:"checklist,omitempty"`
+	ResolvedAt *string `json:"resolved_at,omitempty"`
+}
+
+// ReviewRecord captures the outcome of an independent audit (skills/review) for a gate.
+type ReviewRecord struct {
+	Verdict    Verdict   `json:"verdict"`
+	Findings   []Finding `json:"findings,omitempty"`
+	Checklist  string    `json:"checklist,omitempty"`
+	ReviewedAt *string   `json:"reviewed_at,omitempty"`
+}
+
+// ReEntryEvent records a mid-flight requirement change (Universal Re-entry, §5)
+// that re-enters the pipeline at an earlier artifact and cascades downstream.
+type ReEntryEvent struct {
+	FromPhase       Phase    `json:"from_phase"`
+	Reason          string   `json:"reason"`
+	At              string   `json:"at"`
+	SupersededGates []string `json:"superseded_gates,omitempty"`
+}
+
+// Gate is the persisted state of a single phase gate.
+type Gate struct {
+	Phase        Phase        `json:"phase"` // PROPOSED | SPECIFIED | DESIGNED | PLANNED
+	Artifact     string       `json:"artifact"`
+	Status       GateStatus   `json:"status"`
+	Grill        GrillRecord  `json:"grill"`
+	Review       ReviewRecord `json:"review"`
+	Attempts     int          `json:"attempts"`
+	ApprovedAt   *string      `json:"approved_at"`
+	Superseded   bool         `json:"superseded"`
+	SupersededBy *string      `json:"superseded_by,omitempty"`
+}
+
+// GatesFile is the machine-readable gate state for one change — the source of
+// truth for "has this phase been approved". One record per change.
+type GatesFile struct {
+	SchemaVersion int             `json:"schema_version"`
+	ProjectHash   string          `json:"project_hash"`
+	Change        string          `json:"change"`
+	Workflow      WorkflowLevel   `json:"workflow"`
+	PipelineState string          `json:"pipeline_state"`
+	CurrentGate   string          `json:"current_gate"`
+	Gates         map[string]Gate `json:"gates"` // keyed by: proposal | spec | design | tasks
+	History       []ReEntryEvent  `json:"history,omitempty"`
+	CreatedAt     string          `json:"created_at"`
+	UpdatedAt     string          `json:"updated_at"`
+}
+
 // --- Sentinel Errors ---
 
 var (
@@ -204,4 +379,7 @@ var (
 	ErrNoActiveChange      = errors.New("no active change set; use --change flag or sdlaic switch")
 	ErrInvalidArtifact     = errors.New("invalid artifact type")
 	ErrValidationFailed    = errors.New("validation failed")
+	ErrInvalidVerdict      = errors.New("invalid verdict")
+	ErrInvalidGateStatus   = errors.New("invalid gate status")
+	ErrInvalidSeverity     = errors.New("invalid severity")
 )
