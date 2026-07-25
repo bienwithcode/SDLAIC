@@ -122,10 +122,10 @@ func (s *Store) Load() (domain.GatesFile, error) {
 	return gf, nil
 }
 
-// Init creates a fresh meta.json with the four canonical gates. In strict mode
-// every gate starts pending; in light/free mode every gate starts skipped
-// (the draft-only fast path). It overwrites any existing state.
-func (s *Store) Init(workflow domain.WorkflowLevel) (domain.GatesFile, error) {
+// defaultGates builds a fresh GatesFile with the four canonical gates, without
+// writing it. In strict mode every gate starts pending; in light/free mode every
+// gate starts skipped (the draft-only fast path).
+func (s *Store) defaultGates(workflow domain.WorkflowLevel) domain.GatesFile {
 	initial := domain.GateStatusPending
 	if workflow == domain.WorkflowLight || workflow == domain.WorkflowFree {
 		initial = domain.GateStatusSkipped
@@ -149,8 +149,88 @@ func (s *Store) Init(workflow domain.WorkflowLevel) (domain.GatesFile, error) {
 			Status:   initial,
 		}
 	}
+	return gf
+}
 
+// Init creates and persists a fresh meta.json with the four canonical gates.
+// It overwrites any existing state.
+func (s *Store) Init(workflow domain.WorkflowLevel) (domain.GatesFile, error) {
+	gf := s.defaultGates(workflow)
 	if err := s.Save(gf); err != nil {
+		return domain.GatesFile{}, err
+	}
+	return gf, nil
+}
+
+// LoadOrDefault returns the persisted gate state if it exists, or an in-memory
+// default (NOT written to disk) otherwise. The bool reports whether state
+// already existed. Use this for read-only queries such as `gate status`.
+func (s *Store) LoadOrDefault(workflow domain.WorkflowLevel) (domain.GatesFile, bool, error) {
+	gf, err := s.Load()
+	if errors.Is(err, domain.ErrGateStateNotFound) {
+		return s.defaultGates(workflow), false, nil
+	}
+	if err != nil {
+		return domain.GatesFile{}, false, err
+	}
+	return gf, true, nil
+}
+
+// ReEnter applies the First Impact Point Principle (§5): the gate at fromKey is
+// reset to pending (its artifact will be re-drafted) and every downstream gate
+// is marked superseded and reset to pending. The event is appended to history.
+// meta.json must already exist.
+func (s *Store) ReEnter(fromKey, reason string) (domain.GatesFile, error) {
+	fromIdx := -1
+	for i, g := range pipeline {
+		if g.key == fromKey {
+			fromIdx = i
+			break
+		}
+	}
+	if fromIdx == -1 {
+		return domain.GatesFile{}, fmt.Errorf("unknown gate %q; valid: %v", fromKey, GateKeys())
+	}
+
+	gf, err := s.Load()
+	if err != nil {
+		return domain.GatesFile{}, err
+	}
+
+	// Reset the re-entered gate.
+	from := gf.Gates[fromKey]
+	from.Status = domain.GateStatusPending
+	from.ApprovedAt = nil
+	gf.Gates[fromKey] = from
+
+	// Supersede everything downstream.
+	var superseded []string
+	for _, g := range pipeline[fromIdx+1:] {
+		gate := gf.Gates[g.key]
+		gate.Superseded = true
+		gate.SupersededBy = ptr(fromKey)
+		gate.Status = domain.GateStatusPending
+		gate.ApprovedAt = nil
+		gf.Gates[g.key] = gate
+		superseded = append(superseded, g.key)
+	}
+
+	gf.CurrentGate = fromKey
+	gf.PipelineState = string(pipeline[fromIdx].phase)
+
+	ev := domain.ReEntryEvent{
+		FromPhase:       pipeline[fromIdx].phase,
+		Reason:          reason,
+		At:              s.stamp(),
+		SupersededGates: superseded,
+	}
+	gf.History = append(gf.History, ev)
+
+	// Persist meta.json first, then append the durable jsonl line.
+	if err := s.Save(gf); err != nil {
+		return domain.GatesFile{}, err
+	}
+	if err := s.appendHistoryLine(ev); err != nil {
 		return domain.GatesFile{}, err
 	}
 	return gf, nil
@@ -216,13 +296,11 @@ func (s *Store) SetGate(key string, status domain.GateStatus, verdict *domain.Ve
 	return gf, nil
 }
 
-// AppendHistory appends a re-entry event to history.jsonl and mirrors it into
-// meta.json's History (when meta.json exists).
-func (s *Store) AppendHistory(ev domain.ReEntryEvent) error {
+// appendHistoryLine appends one event as a JSON line to history.jsonl.
+func (s *Store) appendHistoryLine(ev domain.ReEntryEvent) error {
 	if err := os.MkdirAll(s.dir(), 0755); err != nil {
 		return fmt.Errorf("creating gate state dir %s: %w", s.dir(), err)
 	}
-
 	line, err := json.Marshal(ev)
 	if err != nil {
 		return fmt.Errorf("marshaling re-entry event: %w", err)
@@ -242,6 +320,15 @@ func (s *Store) AppendHistory(ev domain.ReEntryEvent) error {
 	}
 	if err := f.Close(); err != nil {
 		return fmt.Errorf("closing history: %w", err)
+	}
+	return nil
+}
+
+// AppendHistory appends a re-entry event to history.jsonl and mirrors it into
+// meta.json's History (when meta.json exists).
+func (s *Store) AppendHistory(ev domain.ReEntryEvent) error {
+	if err := s.appendHistoryLine(ev); err != nil {
+		return err
 	}
 
 	gf, err := s.Load()

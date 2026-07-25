@@ -158,6 +158,68 @@ func TestAppendHistory(t *testing.T) {
 	assert.Len(t, gf.History, 2)
 }
 
+func TestLoadOrDefaultWhenMissing(t *testing.T) {
+	s := newTestStore(t)
+	gf, existed, err := s.LoadOrDefault(domain.WorkflowStrict)
+	require.NoError(t, err)
+	assert.False(t, existed)
+	assert.Len(t, gf.Gates, 4)
+	assert.Equal(t, domain.GateStatusPending, gf.Gates["proposal"].Status)
+	// LoadOrDefault must NOT write anything to disk.
+	assert.NoFileExists(t, filepath.Join(s.dir(), "meta.json"))
+}
+
+func TestLoadOrDefaultWhenPresent(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+	_, err = s.SetGate("proposal", domain.GateStatusApproved, nil, false)
+	require.NoError(t, err)
+
+	gf, existed, err := s.LoadOrDefault(domain.WorkflowStrict)
+	require.NoError(t, err)
+	assert.True(t, existed)
+	assert.Equal(t, domain.GateStatusApproved, gf.Gates["proposal"].Status)
+}
+
+func TestReEnterSupersedesDownstream(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+	// Approve everything first.
+	for _, k := range GateKeys() {
+		_, err := s.SetGate(k, domain.GateStatusApproved, nil, false)
+		require.NoError(t, err)
+	}
+
+	gf, err := s.ReEnter("spec", "ticket scope changed")
+	require.NoError(t, err)
+
+	// The re-entered gate is reset to pending, approval cleared.
+	assert.Equal(t, domain.GateStatusPending, gf.Gates["spec"].Status)
+	assert.Nil(t, gf.Gates["spec"].ApprovedAt)
+
+	// Downstream gates (design, tasks) are superseded; upstream (proposal) untouched.
+	assert.True(t, gf.Gates["design"].Superseded)
+	assert.True(t, gf.Gates["tasks"].Superseded)
+	require.NotNil(t, gf.Gates["design"].SupersededBy)
+	assert.Equal(t, "spec", *gf.Gates["design"].SupersededBy)
+	assert.False(t, gf.Gates["proposal"].Superseded)
+	assert.Equal(t, domain.GateStatusApproved, gf.Gates["proposal"].Status)
+
+	// History records the event.
+	require.Len(t, gf.History, 1)
+	assert.Equal(t, []string{"design", "tasks"}, gf.History[0].SupersededGates)
+}
+
+func TestReEnterUnknownKey(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+	_, err = s.ReEnter("bogus", "x")
+	assert.Error(t, err)
+}
+
 func TestSchemaVersionConstant(t *testing.T) {
 	assert.Equal(t, 1, SchemaVersion)
 }
