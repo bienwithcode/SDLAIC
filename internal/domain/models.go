@@ -382,4 +382,5 @@ var (
 	ErrInvalidVerdict      = errors.New("invalid verdict")
 	ErrInvalidGateStatus   = errors.New("invalid gate status")
 	ErrInvalidSeverity     = errors.New("invalid severity")
+	ErrGateStateNotFound   = errors.New("no gate state (meta.json) found for change")
 )

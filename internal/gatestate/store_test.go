@@ -1,0 +1,172 @@
+package gatestate
+
+import (
+	"bufio"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/bienwithcode/SDLAIC/internal/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	testHash   = "abc123def456"
+	testChange = "JIRA-789"
+)
+
+// newTestStore returns a Store rooted at a temp home with a fixed clock.
+func newTestStore(t *testing.T) *Store {
+	t.Helper()
+	home := t.TempDir()
+	s := NewWithHome(home, testHash, testChange)
+	fixed := time.Date(2026, 7, 25, 10, 0, 0, 0, time.UTC)
+	s.now = func() time.Time { return fixed }
+	return s
+}
+
+func TestLoadNotFound(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Load()
+	assert.ErrorIs(t, err, domain.ErrGateStateNotFound)
+}
+
+func TestInitStrictCreatesPendingGates(t *testing.T) {
+	s := newTestStore(t)
+	gf, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	assert.Equal(t, SchemaVersion, gf.SchemaVersion)
+	assert.Equal(t, testHash, gf.ProjectHash)
+	assert.Equal(t, testChange, gf.Change)
+	assert.Equal(t, domain.WorkflowStrict, gf.Workflow)
+	assert.NotEmpty(t, gf.CreatedAt)
+	assert.NotEmpty(t, gf.UpdatedAt)
+
+	// The four canonical gates exist and are pending in strict mode.
+	for _, key := range []string{"proposal", "spec", "design", "tasks"} {
+		require.Contains(t, gf.Gates, key)
+		assert.Equal(t, domain.GateStatusPending, gf.Gates[key].Status, "gate %s", key)
+	}
+
+	// meta.json is written under the temp home, never in a project repo.
+	metaPath := filepath.Join(s.dir(), "meta.json")
+	assert.FileExists(t, metaPath)
+	assert.Contains(t, metaPath, filepath.Join(".sdlaic", "state", testHash, testChange))
+
+	// Reload round-trips.
+	got, err := s.Load()
+	require.NoError(t, err)
+	assert.Equal(t, gf.Change, got.Change)
+	assert.Len(t, got.Gates, 4)
+}
+
+func TestInitLightSkipsGates(t *testing.T) {
+	s := newTestStore(t)
+	gf, err := s.Init(domain.WorkflowLight)
+	require.NoError(t, err)
+	for key, g := range gf.Gates {
+		assert.Equal(t, domain.GateStatusSkipped, g.Status, "gate %s should be skipped in light mode", key)
+	}
+}
+
+func TestSetGateApprovedStampsApprovedAt(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	gf, err := s.SetGate("proposal", domain.GateStatusApproved, nil, false)
+	require.NoError(t, err)
+
+	g := gf.Gates["proposal"]
+	assert.Equal(t, domain.GateStatusApproved, g.Status)
+	require.NotNil(t, g.ApprovedAt)
+	assert.Equal(t, "2026-07-25T10:00:00Z", *g.ApprovedAt)
+	assert.Equal(t, "proposal", gf.CurrentGate)
+	assert.Equal(t, string(domain.PhaseProposed), gf.PipelineState)
+
+	// review.md mirror is written.
+	assert.FileExists(t, filepath.Join(s.dir(), "review.md"))
+}
+
+func TestSetGateRecordsVerdictAndAttempts(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	reject := domain.VerdictReject
+	_, err = s.SetGate("design", domain.GateStatusFailed, &reject, true)
+	require.NoError(t, err)
+	gf, err := s.SetGate("design", domain.GateStatusFailed, &reject, true)
+	require.NoError(t, err)
+
+	g := gf.Gates["design"]
+	assert.Equal(t, domain.GateStatusFailed, g.Status)
+	assert.Equal(t, domain.VerdictReject, g.Review.Verdict)
+	assert.Equal(t, 2, g.Attempts)
+	assert.Nil(t, g.ApprovedAt, "failed gate must not be approved")
+}
+
+func TestSetGateUnknownKey(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+	_, err = s.SetGate("bogus", domain.GateStatusApproved, nil, false)
+	assert.Error(t, err)
+}
+
+func TestSetGateWithoutInit(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.SetGate("proposal", domain.GateStatusApproved, nil, false)
+	assert.ErrorIs(t, err, domain.ErrGateStateNotFound)
+}
+
+func TestAppendHistory(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	ev := domain.ReEntryEvent{
+		FromPhase:       domain.PhaseProposed,
+		Reason:          "ticket scope changed",
+		At:              "2026-07-25T10:00:00Z",
+		SupersededGates: []string{"spec", "design"},
+	}
+	require.NoError(t, s.AppendHistory(ev))
+	require.NoError(t, s.AppendHistory(ev))
+
+	// history.jsonl has one line per event.
+	f, err := os.Open(filepath.Join(s.dir(), "history.jsonl"))
+	require.NoError(t, err)
+	defer f.Close()
+	lines := 0
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		if strings.TrimSpace(sc.Text()) != "" {
+			lines++
+		}
+	}
+	assert.Equal(t, 2, lines)
+
+	// meta.json History mirrors the events.
+	gf, err := s.Load()
+	require.NoError(t, err)
+	assert.Len(t, gf.History, 2)
+}
+
+func TestSchemaVersionConstant(t *testing.T) {
+	assert.Equal(t, 1, SchemaVersion)
+}
+
+func TestGateKeysOrdered(t *testing.T) {
+	assert.Equal(t, []string{"proposal", "spec", "design", "tasks"}, GateKeys())
+}
+
+func TestErrorsIsWiring(t *testing.T) {
+	// sanity: ErrGateStateNotFound is a real sentinel
+	assert.True(t, errors.Is(domain.ErrGateStateNotFound, domain.ErrGateStateNotFound))
+}
