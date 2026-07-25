@@ -87,32 +87,22 @@ func runValidate(cmd *cobra.Command, args []string) error {
 			content string
 		}
 
-		if at == domain.ArtifactSpecs {
-			// Try specs.md file
-			filePath := filepath.Join(changePath, at.FileName())
-			data, err := os.ReadFile(filePath)
-			if err == nil {
-				contentsToValidate = append(contentsToValidate, struct {
-					name    string
-					content string
-				}{at.FileName(), string(data)})
-			} else {
-				// Try specs/ directory recursively
-				specsDir := filepath.Join(changePath, "specs")
-				_ = filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
-					if err == nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
-						data, err := os.ReadFile(path)
-						if err == nil {
-							relPath, _ := filepath.Rel(changePath, path)
-							contentsToValidate = append(contentsToValidate, struct {
-								name    string
-								content string
-							}{relPath, string(data)})
-						}
+		if at == domain.ArtifactSpec {
+			// The spec artifact is directory-based: specs/<capability>/spec.md.
+			specsDir := filepath.Join(changePath, "specs")
+			_ = filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
+				if err == nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
+					data, err := os.ReadFile(path)
+					if err == nil {
+						relPath, _ := filepath.Rel(changePath, path)
+						contentsToValidate = append(contentsToValidate, struct {
+							name    string
+							content string
+						}{relPath, string(data)})
 					}
-					return nil
-				})
-			}
+				}
+				return nil
+			})
 		} else {
 			filePath := filepath.Join(changePath, at.FileName())
 			data, err := os.ReadFile(filePath)
@@ -145,25 +135,18 @@ func runValidate(cmd *cobra.Command, args []string) error {
 		for _, at := range domain.OrderedArtifactTypes() {
 			populated := false
 
-			if at == domain.ArtifactSpecs {
-				// Check specs.md
-				filePath := filepath.Join(changePath, at.FileName())
-				data, err := os.ReadFile(filePath)
-				if err == nil && strings.TrimSpace(string(data)) != "" {
-					populated = true
-				} else {
-					// Check specs/ directory
-					specsDir := filepath.Join(changePath, "specs")
-					_ = filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
-						if err == nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
-							data, err := os.ReadFile(path)
-							if err == nil && strings.TrimSpace(string(data)) != "" {
-								populated = true
-							}
+			if at == domain.ArtifactSpec {
+				// The spec artifact is directory-based: specs/<capability>/spec.md.
+				specsDir := filepath.Join(changePath, "specs")
+				_ = filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
+					if err == nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
+						data, err := os.ReadFile(path)
+						if err == nil && strings.TrimSpace(string(data)) != "" {
+							populated = true
 						}
-						return nil
-					})
-				}
+					}
+					return nil
+				})
 			} else {
 				filePath := filepath.Join(changePath, at.FileName())
 				data, err := os.ReadFile(filePath)

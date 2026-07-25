@@ -67,21 +67,23 @@ type Phase string
 
 const (
 	PhaseEmpty       Phase = "EMPTY"       // Change directory exists, no artifacts
-	PhaseContext     Phase = "CONTEXT"      // context.md is populated
-	PhaseChallenged  Phase = "CHALLENGED"   // rationale.md is populated
-	PhaseProposed    Phase = "PROPOSED"     // proposal.md is populated
-	PhaseSpecified   Phase = "SPECIFIED"    // specs.md is populated
-	PhaseDesigned    Phase = "DESIGNED"     // design.md is populated
-	PhasePlanned     Phase = "PLANNED"      // tasks.md is populated
-	PhaseImplemented Phase = "IMPLEMENTED"  // All artifacts complete, tasks checked
+	PhaseContext     Phase = "CONTEXT"     // context.md is populated
+	PhaseProposed    Phase = "PROPOSED"    // proposal.md is populated
+	PhaseSpecified   Phase = "SPECIFIED"   // specs/<capability>/spec.md is populated
+	PhaseDesigned    Phase = "DESIGNED"    // design.md is populated
+	PhasePlanned     Phase = "PLANNED"     // tasks.md is populated
+	PhaseImplemented Phase = "IMPLEMENTED" // All artifacts complete, tasks checked
 )
 
 // OrderedPhases returns phases in their natural progression order.
+//
+// Note: the CHALLENGED phase (and its rationale.md artifact) were removed in the
+// phase-gated restructuring. Socratic challenge output now lives in a
+// "## Challenge & Resolution Log" section inside each artifact.
 func OrderedPhases() []Phase {
 	return []Phase{
 		PhaseEmpty,
 		PhaseContext,
-		PhaseChallenged,
 		PhaseProposed,
 		PhaseSpecified,
 		PhaseDesigned,
@@ -96,26 +98,30 @@ func OrderedPhases() []Phase {
 type ArtifactType string
 
 const (
-	ArtifactContext   ArtifactType = "context"
-	ArtifactRationale ArtifactType = "rationale"
-	ArtifactProposal  ArtifactType = "proposal"
-	ArtifactSpecs     ArtifactType = "specs"
-	ArtifactDesign    ArtifactType = "design"
-	ArtifactTasks     ArtifactType = "tasks"
+	ArtifactContext  ArtifactType = "context"
+	ArtifactProposal ArtifactType = "proposal"
+	ArtifactSpec     ArtifactType = "spec" // directory-based: specs/<capability>/spec.md
+	ArtifactDesign   ArtifactType = "design"
+	ArtifactTasks    ArtifactType = "tasks"
 )
 
 // FileName returns the markdown filename for an artifact type.
+//
+// The spec artifact is directory-based (specs/<capability>/spec.md); FileName
+// returns "spec.md" as the per-capability leaf name — analyzers locate it via
+// the specs/ directory, not at the change root.
 func (at ArtifactType) FileName() string {
 	return string(at) + ".md"
 }
 
 // OrderedArtifactTypes returns artifact types in their natural order.
+//
+// Note: the rationale artifact was removed in the phase-gated restructuring.
 func OrderedArtifactTypes() []ArtifactType {
 	return []ArtifactType{
 		ArtifactContext,
-		ArtifactRationale,
 		ArtifactProposal,
-		ArtifactSpecs,
+		ArtifactSpec,
 		ArtifactDesign,
 		ArtifactTasks,
 	}
@@ -129,7 +135,7 @@ func ParseArtifactType(s string) (ArtifactType, error) {
 			return at, nil
 		}
 	}
-	return "", fmt.Errorf("invalid artifact type %q; valid: context, proposal, specs, design, tasks", s)
+	return "", fmt.Errorf("invalid artifact type %q; valid: context, proposal, spec, design, tasks", s)
 }
 
 // --- Structs ---
@@ -178,9 +184,9 @@ type ProjectEntry struct {
 
 // GlobalConfig represents the ~/.sdlaic/config.json file.
 type GlobalConfig struct {
-	Version         int                    `json:"version"`
-	DefaultWorkflow WorkflowLevel          `json:"default_workflow"`
-	DefaultStorage  StorageMode            `json:"default_storage"`
+	Version         int                     `json:"version"`
+	DefaultWorkflow WorkflowLevel           `json:"default_workflow"`
+	DefaultStorage  StorageMode             `json:"default_storage"`
 	Projects        map[string]ProjectEntry `json:"projects,omitempty"`
 }
 

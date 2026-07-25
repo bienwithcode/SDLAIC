@@ -89,18 +89,16 @@ func TestValidate_SpecsDirectory(t *testing.T) {
 	require.NoError(t, err)
 
 	changeDir := filepath.Join(dir, ".sdlaic", "changes", "SPECSDIR")
-	
-	// Create rationale.md to satisfy phase progression
+
 	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "context.md"), []byte("# Context\nReal context."), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "rationale.md"), []byte("# Rationale\nDone"), 0644))
 	// Create proposal.md
 	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "proposal.md"), []byte("# Proposal\nContent"), 0644))
-	
+
 	// Create specs directory and a markdown file with a placeholder inside it
 	specsDir := filepath.Join(changeDir, "specs", "sub-cap")
 	require.NoError(t, os.MkdirAll(specsDir, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(specsDir, "spec.md"), []byte("# Spec\n{{PLACEHOLDER}}"), 0644))
-	
+
 	// Create design.md and tasks.md
 	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\nContent"), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n- [ ] Task 1"), 0644))

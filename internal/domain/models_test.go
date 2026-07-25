@@ -78,20 +78,20 @@ func TestValidWorkflowLevels(t *testing.T) {
 
 func TestOrderedPhases(t *testing.T) {
 	phases := OrderedPhases()
-	assert.Len(t, phases, 8)
+	assert.Len(t, phases, 7) // CHALLENGED removed in phase-gated restructuring
 	assert.Equal(t, PhaseEmpty, phases[0])
-	assert.Equal(t, PhaseImplemented, phases[7])
+	assert.Equal(t, PhaseImplemented, phases[6])
+	assert.NotContains(t, phases, Phase("CHALLENGED"))
 }
 
 func TestArtifactTypeFileName(t *testing.T) {
 	tests := []struct {
-		artifact  ArtifactType
-		fileName  string
+		artifact ArtifactType
+		fileName string
 	}{
 		{ArtifactContext, "context.md"},
-		{ArtifactRationale, "rationale.md"},
 		{ArtifactProposal, "proposal.md"},
-		{ArtifactSpecs, "specs.md"},
+		{ArtifactSpec, "spec.md"},
 		{ArtifactDesign, "design.md"},
 		{ArtifactTasks, "tasks.md"},
 	}
@@ -110,11 +110,12 @@ func TestParseArtifactType(t *testing.T) {
 		wantErr  bool
 	}{
 		{"context", ArtifactContext, false},
-		{"rationale", ArtifactRationale, false},
 		{"proposal", ArtifactProposal, false},
-		{"specs", ArtifactSpecs, false},
+		{"spec", ArtifactSpec, false},
 		{"design", ArtifactDesign, false},
 		{"tasks", ArtifactTasks, false},
+		{"rationale", "", true}, // removed
+		{"specs", "", true},     // renamed to singular spec
 		{"unknown", "", true},
 		{"", "", true},
 	}
@@ -134,9 +135,10 @@ func TestParseArtifactType(t *testing.T) {
 
 func TestOrderedArtifactTypes(t *testing.T) {
 	types := OrderedArtifactTypes()
-	assert.Len(t, types, 6)
+	assert.Len(t, types, 5) // rationale removed
 	assert.Equal(t, ArtifactContext, types[0])
-	assert.Equal(t, ArtifactTasks, types[5])
+	assert.Equal(t, ArtifactTasks, types[4])
+	assert.NotContains(t, types, ArtifactType("rationale"))
 }
 
 func TestNewLocalConfig(t *testing.T) {
