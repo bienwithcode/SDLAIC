@@ -91,7 +91,7 @@ func TestArtifactTypeFileName(t *testing.T) {
 	}{
 		{ArtifactContext, "context.md"},
 		{ArtifactProposal, "proposal.md"},
-		{ArtifactSpec, "spec.md"},
+		{ArtifactSpec, "specs/<capability>/spec.md"},
 		{ArtifactDesign, "design.md"},
 		{ArtifactTasks, "tasks.md"},
 	}

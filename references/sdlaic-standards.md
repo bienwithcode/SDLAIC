@@ -36,13 +36,13 @@ draft skill is mandatory; grill and review are toggled by workflow level
 NO_ACTIVE_CHANGE
   │ sdlaic new change "<name>"   → context.md
   ▼
-PROPOSED   [grill proposal] → proposal → [review proposal] → gate:proposal ✓
+PROPOSED   [grillme proposal] → proposal → [review proposal] → gate:proposal ✓
   ▼
-SPECIFIED  [grill spec]     → spec     → [review spec]     → gate:spec ✓
+SPECIFIED  [grillme spec]     → spec     → [review spec]     → gate:spec ✓
   ▼
-DESIGNED   [grill design]   → design   → [review design]   → gate:design ✓
+DESIGNED   [grillme design]   → design   → [review design]   → gate:design ✓
   ▼
-PLANNED    [grill tasks]    → plan     → [review tasks]    → gate:tasks ✓
+PLANNED    [grillme tasks]    → plan     → [review tasks]    → gate:tasks ✓
   ▼
 IMPLEMENTED  apply (execute tasks) → review code → review.md
   ▼

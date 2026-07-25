@@ -1,37 +1,27 @@
-# Specifications
+# <capability-name> (delta)
 
-## Functional Requirements
+## ADDED Requirements
 
-### FR-1: <!-- Requirement title -->
+### Requirement: [Verb statement of what the system MUST do]
+[One paragraph describing the requirement in full.]
 
-**Description:** <!-- Describe the requirement -->
+#### Scenario: [happy path — descriptive name]
+- **GIVEN** [precondition]
+- **WHEN** [action]
+- **THEN** [observable outcome]
 
-**Acceptance Criteria:**
--
+#### Scenario: [malformed / boundary input]
+- **GIVEN** [invalid or edge precondition]
+- **WHEN** [action]
+- **THEN** [defined error behavior — not a crash]
 
-### FR-2: <!-- Requirement title -->
+## CHANGED Requirements
 
-**Description:** <!-- Describe the requirement -->
+### Requirement: [existing requirement being modified]
+[What changed and why.]
 
-**Acceptance Criteria:**
--
-
-## Non-Functional Requirements
-
-### NFR-1: <!-- Requirement title -->
-
-**Description:** <!-- Describe the requirement -->
-
-**Target:** <!-- Measurable target -->
-
-## API Contract
-
-<!-- Define APIs, interfaces, or contracts this change introduces or modifies -->
-
-## Data Model
-
-<!-- Describe any data model changes -->
-
-## Dependencies
-
-<!-- List external dependencies or integrations -->
+## Challenge & Resolution Log
+<!-- From the spec grill. State "No grill (workflow: <level>)" if none ran. -->
+| Challenge | Resolution |
+|-----------|------------|
+| [edge case raised] | [scenario added / declared out of scope] |

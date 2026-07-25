@@ -111,6 +111,9 @@ const (
 // returns "spec.md" as the per-capability leaf name — analyzers locate it via
 // the specs/ directory, not at the change root.
 func (at ArtifactType) FileName() string {
+	if at == ArtifactSpec {
+		return "specs/<capability>/spec.md"
+	}
 	return string(at) + ".md"
 }
 
@@ -352,6 +355,7 @@ type Gate struct {
 	Phase        Phase        `json:"phase"` // PROPOSED | SPECIFIED | DESIGNED | PLANNED
 	Artifact     string       `json:"artifact"`
 	Status       GateStatus   `json:"status"`
+	IsPassing    bool         `json:"is_passing"`
 	Grill        GrillRecord  `json:"grill"`
 	Review       ReviewRecord `json:"review"`
 	Attempts     int          `json:"attempts"`

@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/bienwithcode/SDLAIC/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/state"
 	"github.com/bienwithcode/SDLAIC/internal/storage"
 	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
@@ -62,14 +64,43 @@ func runShow(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(cmd.OutOrStdout(), "Artifacts:\n")
 
 	for _, at := range domain.OrderedArtifactTypes() {
-		filePath := filepath.Join(changePath, at.FileName())
-		info, err := os.Stat(filePath)
-		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-15s (not found)\n", at.FileName())
+		if at == domain.ArtifactSpec {
+			specsDir := filepath.Join(changePath, "specs")
+			var totalSize int64
+			var latestMod time.Time
+			var count int
+			_ = filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
+				if err == nil && !info.IsDir() && state.IsCapabilitySpec(specsDir, path) {
+					totalSize += info.Size()
+					if info.ModTime().After(latestMod) {
+						latestMod = info.ModTime()
+					}
+					count++
+				}
+				return nil
+			})
+
+			if count == 0 {
+				fmt.Fprintf(cmd.OutOrStdout(), "  %-30s (not found)\n", at.FileName())
+			} else {
+				fmt.Fprintf(cmd.OutOrStdout(), "  %-30s %6d bytes  %s (%d specs)\n",
+					at.FileName(),
+					totalSize,
+					latestMod.Format("2006-01-02 15:04"),
+					count,
+				)
+			}
 			continue
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), "  %-15s %6d bytes  %s\n",
+		filePath := filepath.Join(changePath, at.FileName())
+		info, err := os.Stat(filePath)
+		if err != nil {
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-30s (not found)\n", at.FileName())
+			continue
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), "  %-30s %6d bytes  %s\n",
 			at.FileName(),
 			info.Size(),
 			info.ModTime().Format("2006-01-02 15:04"),

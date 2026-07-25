@@ -14,7 +14,7 @@ modular grill checklist. It challenges — it does NOT design or draft.
 
 ## Parameters
 
-Invoked as `grill <phase>` where `<phase>` ∈ `proposal | spec | design | tasks`:
+Invoked as `grillme <phase>` where `<phase>` ∈ `proposal | spec | design | tasks`:
 
 | Phase | Grill checklist | Runs before | Target artifact |
 |-------|-----------------|-------------|-----------------|

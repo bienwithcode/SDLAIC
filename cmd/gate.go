@@ -101,6 +101,12 @@ func runGateStatus(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("loading gate state: %w", err)
 	}
+
+	for k, g := range gf.Gates {
+		g.IsPassing = g.IsPassingFor(cfg.Workflow)
+		gf.Gates[k] = g
+	}
+
 	if gateJSON {
 		return printJSON(cmd, gf)
 	}
@@ -108,6 +114,17 @@ func runGateStatus(cmd *cobra.Command, args []string) error {
 }
 
 func runGateSet(cmd *cobra.Command, args []string) error {
+	validPhase := false
+	for _, k := range gatestate.GateKeys() {
+		if k == gateSetPhase {
+			validPhase = true
+			break
+		}
+	}
+	if !validPhase {
+		return fmt.Errorf("unknown gate %q; valid: %v", gateSetPhase, gatestate.GateKeys())
+	}
+
 	status, err := domain.ParseGateStatus(gateSetStatus)
 	if err != nil {
 		return err

@@ -28,10 +28,10 @@ both on; `light`/`free` = draft-only, gates auto-`skipped`).
 ```
 NO_ACTIVE_CHANGE ──→ new ──→ context.md
    │
-   ▼   [grill proposal] → proposal → [review proposal] → gate:proposal ✓
-   ▼   [grill spec]     → spec     → [review spec]     → gate:spec ✓
-   ▼   [grill design]   → design   → [review design]   → gate:design ✓
-   ▼   [grill tasks]    → plan     → [review tasks]    → gate:tasks ✓
+   ▼   [grillme proposal] → proposal → [review proposal] → gate:proposal ✓
+   ▼   [grillme spec]     → spec     → [review spec]     → gate:spec ✓
+   ▼   [grillme design]   → design   → [review design]   → gate:design ✓
+   ▼   [grillme tasks]    → plan     → [review tasks]    → gate:tasks ✓
    ▼   apply ──→ code ──→ review code ──→ review.md
 ```
 
