@@ -10,8 +10,6 @@ import (
 
 	"github.com/bienwithcode/SDLAIC/internal/domain"
 	"github.com/bienwithcode/SDLAIC/internal/state"
-	"github.com/bienwithcode/SDLAIC/internal/storage"
-	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
 
 // showCmd represents the `sdlaic show` command.
@@ -30,26 +28,12 @@ func init() {
 func runShow(cmd *cobra.Command, args []string) error {
 	changeName := args[0]
 
-	// Find workspace
-	cwd, err := os.Getwd()
+	project, err := resolveProject()
 	if err != nil {
-		return fmt.Errorf("getting current directory: %w", err)
+		return err
 	}
 
-	root, err := workspace.FindWorkspace(cwd)
-	if err != nil {
-		return fmt.Errorf("no SDLAIC workspace found: %w", err)
-	}
-
-	workspaceRoot = root
-
-	cfg, err := loadLocalConfig()
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
-	}
-
-	homeDir, _ := os.UserHomeDir()
-	changePath, err := storage.ResolvePath(cfg.Storage, root, homeDir, changeName)
+	changePath, err := project.changePath(changeName)
 	if err != nil {
 		return fmt.Errorf("resolving change path: %w", err)
 	}

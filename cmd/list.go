@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/bienwithcode/SDLAIC/internal/storage"
-	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
 
 var (
@@ -31,28 +30,14 @@ func init() {
 }
 
 func runList(cmd *cobra.Command, args []string) error {
-	// Find workspace
-	cwd, err := os.Getwd()
+	project, err := resolveProject()
 	if err != nil {
-		return fmt.Errorf("getting current directory: %w", err)
+		return err
 	}
 
-	root, err := workspace.FindWorkspace(cwd)
+	basePath, err := project.changesDir()
 	if err != nil {
-		return fmt.Errorf("no SDLAIC workspace found: %w", err)
-	}
-
-	workspaceRoot = root
-
-	cfg, err := loadLocalConfig()
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
-	}
-
-	homeDir, _ := os.UserHomeDir()
-	basePath, err := storage.ChangesBasePath(cfg.Storage, root, homeDir)
-	if err != nil {
-		return fmt.Errorf("resolving changes path: %w", err)
+		return err
 	}
 
 	// List active changes
@@ -86,11 +71,12 @@ func runList(cmd *cobra.Command, args []string) error {
 		return printJSON(cmd, result)
 	}
 
-	// Human output
-	fmt.Fprintf(cmd.OutOrStdout(), "Changes:\n")
+	// Human output — name the directory, since it is per-project configuration
+	// and not necessarily inside the project.
+	fmt.Fprintf(cmd.OutOrStdout(), "Changes in %s:\n", basePath)
 	for _, c := range active {
 		marker := " "
-		if c == cfg.ActiveChange {
+		if c == project.ActiveChange {
 			marker = "*"
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "  %s %s\n", marker, c)
