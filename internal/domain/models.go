@@ -6,33 +6,6 @@ import (
 	"fmt"
 )
 
-// --- Storage Modes ---
-
-// StorageMode determines where change artifacts are stored.
-type StorageMode string
-
-const (
-	StorageModeLocal   StorageMode = "local"   // <project-root>/.sdlaic/changes/ — tracked by git
-	StorageModeIgnored StorageMode = "ignored" // <project-root>/.sdlaic/changes/ — in .gitignore
-	StorageModeGlobal  StorageMode = "global"  // ~/.sdlaic/stores/<hash>/changes/ — out of tree
-)
-
-// ValidStorageModes returns all supported storage modes.
-func ValidStorageModes() []StorageMode {
-	return []StorageMode{StorageModeLocal, StorageModeIgnored, StorageModeGlobal}
-}
-
-// ParseStorageMode converts a string to a StorageMode, returning an error if invalid.
-func ParseStorageMode(s string) (StorageMode, error) {
-	sm := StorageMode(s)
-	for _, mode := range ValidStorageModes() {
-		if sm == mode {
-			return sm, nil
-		}
-	}
-	return "", fmt.Errorf("invalid storage mode %q; valid: local, ignored, global", s)
-}
-
 // --- Workflow Levels ---
 
 // WorkflowLevel controls how strictly the enforcer agent validates phase progression.
@@ -163,15 +136,11 @@ type ChangeStatus struct {
 // ProjectEntry stores all per-project state in the global config, keyed by the
 // project hash. ChangesDir is an absolute path; empty means the project has not
 // been configured yet and the CLI should prompt for one.
-//
-// Storage is retained only until every command reads ChangesDir; it is removed
-// together with StorageMode.
 type ProjectEntry struct {
 	Path         string        `json:"path"`
 	ChangesDir   string        `json:"changes_dir"`
 	Workflow     WorkflowLevel `json:"workflow"`
 	ActiveChange string        `json:"active_change,omitempty"`
-	Storage      StorageMode   `json:"storage"`
 }
 
 // GlobalConfigVersion is the schema version this build writes. Older files are
@@ -182,7 +151,6 @@ const GlobalConfigVersion = 2
 type GlobalConfig struct {
 	Version         int                     `json:"version"`
 	DefaultWorkflow WorkflowLevel           `json:"default_workflow"`
-	DefaultStorage  StorageMode             `json:"default_storage"`
 	Projects        map[string]ProjectEntry `json:"projects,omitempty"`
 }
 
@@ -195,7 +163,6 @@ func NewGlobalConfig() GlobalConfig {
 	return GlobalConfig{
 		Version:         GlobalConfigVersion,
 		DefaultWorkflow: WorkflowStrict,
-		DefaultStorage:  StorageModeLocal,
 		Projects:        make(map[string]ProjectEntry),
 	}
 }

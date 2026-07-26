@@ -132,11 +132,6 @@ func writeFileAtomic(path string, data []byte) error {
 
 // ValidateGlobal checks that a GlobalConfig has valid field values.
 func ValidateGlobal(cfg domain.GlobalConfig) error {
-	if cfg.DefaultStorage != "" {
-		if _, err := domain.ParseStorageMode(string(cfg.DefaultStorage)); err != nil {
-			return fmt.Errorf("invalid default_storage %q: %w", cfg.DefaultStorage, err)
-		}
-	}
 	if cfg.DefaultWorkflow != "" {
 		if _, err := domain.ParseWorkflowLevel(string(cfg.DefaultWorkflow)); err != nil {
 			return fmt.Errorf("invalid default_workflow %q: %w", cfg.DefaultWorkflow, err)

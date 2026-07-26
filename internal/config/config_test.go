@@ -21,9 +21,8 @@ func TestLoadGlobal_ValidJSON(t *testing.T) {
 	raw := domain.GlobalConfig{
 		Version:         1,
 		DefaultWorkflow: domain.WorkflowFree,
-		DefaultStorage:  domain.StorageModeGlobal,
 		Projects: map[string]domain.ProjectEntry{
-			"abc123": {Path: "/tmp/project", Storage: domain.StorageModeLocal},
+			"abc123": {Path: "/tmp/project", ChangesDir: "/tmp/project/.sdlaic/changes"},
 		},
 	}
 	data, err := json.MarshalIndent(raw, "", "  ")
@@ -34,7 +33,6 @@ func TestLoadGlobal_ValidJSON(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, got.Version)
 	assert.Equal(t, domain.WorkflowFree, got.DefaultWorkflow)
-	assert.Equal(t, domain.StorageModeGlobal, got.DefaultStorage)
 	assert.Len(t, got.Projects, 1)
 	assert.Equal(t, "/tmp/project", got.Projects["abc123"].Path)
 }
@@ -241,17 +239,6 @@ func TestLoadGlobal_MissingFile(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestLoadGlobal_InvalidDefaultStorage(t *testing.T) {
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "config.json")
-
-	data := `{"version":1,"default_storage":"cloud","default_workflow":"strict"}`
-	require.NoError(t, os.WriteFile(cfgPath, []byte(data), 0644))
-
-	_, err := LoadGlobal(cfgPath)
-	assert.Error(t, err)
-}
-
 func TestLoadGlobal_InvalidDefaultWorkflow(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.json")
@@ -270,11 +257,10 @@ func TestSaveGlobal_Roundtrip(t *testing.T) {
 	cfgPath := filepath.Join(dir, "config.json")
 
 	original := domain.GlobalConfig{
-		Version:         1,
+		Version:         domain.GlobalConfigVersion,
 		DefaultWorkflow: domain.WorkflowStrict,
-		DefaultStorage:  domain.StorageModeLocal,
 		Projects: map[string]domain.ProjectEntry{
-			"proj1": {Path: "/tmp/proj1", Storage: domain.StorageModeLocal},
+			"proj1": {Path: "/tmp/proj1", ChangesDir: "/tmp/proj1/.sdlaic/changes"},
 		},
 	}
 	require.NoError(t, SaveGlobal(original, cfgPath))
@@ -308,19 +294,9 @@ func TestValidateGlobal_ValidConfig(t *testing.T) {
 	assert.NoError(t, ValidateGlobal(cfg))
 }
 
-func TestValidateGlobal_InvalidDefaultStorage(t *testing.T) {
-	cfg := domain.GlobalConfig{
-		Version:         1,
-		DefaultStorage:  "bad",
-		DefaultWorkflow: domain.WorkflowStrict,
-	}
-	assert.Error(t, ValidateGlobal(cfg))
-}
-
 func TestValidateGlobal_InvalidDefaultWorkflow(t *testing.T) {
 	cfg := domain.GlobalConfig{
-		Version:         1,
-		DefaultStorage:  domain.StorageModeLocal,
+		Version:         domain.GlobalConfigVersion,
 		DefaultWorkflow: "bad",
 	}
 	assert.Error(t, ValidateGlobal(cfg))

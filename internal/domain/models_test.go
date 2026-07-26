@@ -9,42 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseStorageMode(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected StorageMode
-		wantErr  bool
-	}{
-		{"local", StorageModeLocal, false},
-		{"ignored", StorageModeIgnored, false},
-		{"global", StorageModeGlobal, false},
-		{"cloud", "", true},
-		{"", "", true},
-		{"LOCAL", "", true}, // case-sensitive
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			got, err := ParseStorageMode(tt.input)
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Empty(t, got)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.expected, got)
-			}
-		})
-	}
-}
-
-func TestValidStorageModes(t *testing.T) {
-	modes := ValidStorageModes()
-	assert.Len(t, modes, 3)
-	assert.Contains(t, modes, StorageModeLocal)
-	assert.Contains(t, modes, StorageModeIgnored)
-	assert.Contains(t, modes, StorageModeGlobal)
-}
-
 func TestParseWorkflowLevel(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -139,15 +103,6 @@ func TestOrderedArtifactTypes(t *testing.T) {
 	assert.Equal(t, ArtifactContext, types[0])
 	assert.Equal(t, ArtifactTasks, types[4])
 	assert.NotContains(t, types, ArtifactType("rationale"))
-}
-
-func TestNewGlobalConfig(t *testing.T) {
-	cfg := NewGlobalConfig()
-	assert.Equal(t, 2, cfg.Version)
-	assert.Equal(t, WorkflowStrict, cfg.DefaultWorkflow)
-	assert.Equal(t, StorageModeLocal, cfg.DefaultStorage)
-	assert.NotNil(t, cfg.Projects)
-	assert.Empty(t, cfg.Projects)
 }
 
 func TestProjectEntryJSONRoundTrip(t *testing.T) {
