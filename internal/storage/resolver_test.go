@@ -112,3 +112,45 @@ func TestListChanges_NonexistentDir(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, changes)
 }
+
+func TestCanonicalPath_ResolvesSymlink(t *testing.T) {
+	base := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(base, "real"), 0755))
+	require.NoError(t, os.Symlink(filepath.Join(base, "real"), filepath.Join(base, "link")))
+
+	viaLink := CanonicalPath(filepath.Join(base, "link"))
+	direct := CanonicalPath(filepath.Join(base, "real"))
+
+	assert.Equal(t, direct, viaLink)
+}
+
+func TestCanonicalPath_ResolvesThroughSymlinkedParentForMissingLeaf(t *testing.T) {
+	base := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(base, "real"), 0755))
+	require.NoError(t, os.Symlink(filepath.Join(base, "real"), filepath.Join(base, "link")))
+
+	// "changes" does not exist yet — the parent still has to be resolved, or a
+	// collision only becomes visible after the directory is created.
+	viaLink := CanonicalPath(filepath.Join(base, "link", "changes"))
+	direct := CanonicalPath(filepath.Join(base, "real", "changes"))
+
+	assert.Equal(t, direct, viaLink)
+}
+
+func TestCanonicalPath_IsAbsoluteForRelativeInput(t *testing.T) {
+	assert.True(t, filepath.IsAbs(CanonicalPath("some/relative/dir")))
+}
+
+func TestCanonicalPath_HandlesFullyMissingPath(t *testing.T) {
+	assert.Equal(t, "/definitely/not/here", CanonicalPath("/definitely/not/here"))
+}
+
+func TestSamePath_DistinguishesDifferentDirectories(t *testing.T) {
+	base := t.TempDir()
+	assert.False(t, SamePath(filepath.Join(base, "a"), filepath.Join(base, "b")))
+}
+
+func TestSamePath_MatchesEquivalentSpellings(t *testing.T) {
+	base := t.TempDir()
+	assert.True(t, SamePath(filepath.Join(base, "a"), filepath.Join(base, ".", "a")))
+}

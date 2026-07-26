@@ -149,3 +149,45 @@ func TestInit_WritesNothingIntoTheProjectButTheChangesDir(t *testing.T) {
 	require.Len(t, entries, 1)
 	assert.Equal(t, ".sdlaic", entries[0].Name())
 }
+
+func TestInit_RejectsChangesDirReachedThroughSymlink(t *testing.T) {
+	home, _ := initFixture(t)
+
+	// One physical directory, two names for it.
+	base := t.TempDir()
+	real := filepath.Join(base, "real", "changes")
+	require.NoError(t, os.MkdirAll(real, 0755))
+	require.NoError(t, os.Symlink(filepath.Join(base, "real"), filepath.Join(base, "link")))
+
+	_, err := ExecuteCommand(rootCmd, "init", "--home", home, "--changes-dir", real)
+	require.NoError(t, err)
+
+	other, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(other))
+
+	_, err = ExecuteCommand(rootCmd, "init", "--home", home, "--changes-dir", filepath.Join(base, "link", "changes"))
+
+	require.Error(t, err, "a second name for the same directory must be rejected, or two projects end up sharing one store")
+}
+
+func TestInit_RejectsChangesDirThroughSymlinkedParentBeforeItExists(t *testing.T) {
+	home, _ := initFixture(t)
+
+	base := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(base, "real"), 0755))
+	require.NoError(t, os.Symlink(filepath.Join(base, "real"), filepath.Join(base, "link")))
+
+	// Neither changes dir exists yet; the collision is only visible after
+	// canonicalising through the symlinked parent.
+	_, err := ExecuteCommand(rootCmd, "init", "--home", home, "--changes-dir", filepath.Join(base, "real", "changes"))
+	require.NoError(t, err)
+
+	other, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(other))
+
+	_, err = ExecuteCommand(rootCmd, "init", "--home", home, "--changes-dir", filepath.Join(base, "link", "changes"))
+
+	require.Error(t, err)
+}

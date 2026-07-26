@@ -127,7 +127,9 @@ func ensureChangesDirUnclaimed(cfgPath string, hash string, changesDir string) e
 		return fmt.Errorf("loading global config: %w", err)
 	}
 	for otherHash, entry := range cfg.Projects {
-		if otherHash == hash || entry.ChangesDir != changesDir {
+		// Compare canonical paths: two names for one physical directory —
+		// through a symlink, say — must still collide.
+		if otherHash == hash || entry.ChangesDir == "" || !storage.SamePath(entry.ChangesDir, changesDir) {
 			continue
 		}
 		return fmt.Errorf("changes directory %s is already used by project %s", changesDir, entry.Path)

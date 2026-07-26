@@ -11,6 +11,38 @@ import (
 	"github.com/bienwithcode/SDLAIC/internal/domain"
 )
 
+// CanonicalPath returns the form of a path used when comparing two paths for
+// identity: absolute, and symlink-free as far as the filesystem allows.
+//
+// It resolves the deepest ancestor that exists and re-attaches the remainder,
+// so a directory that has not been created yet still canonicalises through a
+// symlinked parent. Comparing raw strings instead would let two names for one
+// physical directory look distinct.
+func CanonicalPath(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = filepath.Clean(path)
+	}
+
+	remainder := ""
+	for current := abs; ; {
+		if resolved, err := filepath.EvalSymlinks(current); err == nil {
+			return filepath.Join(resolved, remainder)
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return abs // nothing along the path exists; the absolute form is the best we have
+		}
+		remainder = filepath.Join(filepath.Base(current), remainder)
+		current = parent
+	}
+}
+
+// SamePath reports whether two paths name the same location on disk.
+func SamePath(a, b string) bool {
+	return CanonicalPath(a) == CanonicalPath(b)
+}
+
 // DefaultChangesDir returns the in-project location used when a project does
 // not override it: <project-root>/.sdlaic/changes.
 func DefaultChangesDir(projectRoot string) string {
