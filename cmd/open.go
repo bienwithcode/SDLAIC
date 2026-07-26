@@ -1,10 +1,11 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -18,7 +19,7 @@ var (
 	openNoSpawn     bool
 	openPrint       bool
 	openMarketplace string
-	openStorage     string
+	openChangesDir  string
 	openWorkflow    string
 )
 
@@ -43,7 +44,7 @@ func init() {
 	openClaudeCmd.Flags().BoolVar(&openNoSpawn, "no-spawn", false, "Install only, do not spawn Claude shell")
 	openClaudeCmd.Flags().BoolVar(&openPrint, "print", false, "Print commands to be run, do not execute them")
 	openClaudeCmd.Flags().StringVar(&openMarketplace, "marketplace", "bienwithcode/SDLAIC", "Override default marketplace repository owner/repo")
-	openClaudeCmd.Flags().StringVar(&openStorage, "storage", "", "Override storage mode for auto-init (local, ignored, global)")
+	openClaudeCmd.Flags().StringVar(&openChangesDir, "changes-dir", "", "Directory holding change artifacts, for first-time setup")
 	openClaudeCmd.Flags().StringVar(&openWorkflow, "workflow", "", "Override workflow level for auto-init (strict, light, free)")
 
 	// Codex stub
@@ -62,80 +63,8 @@ func runOpenClaude(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("getting current directory: %w", err)
 	}
 
-	// Check if workspace exists
-	hasWorkspace := true
-	_, err = workspace.FindWorkspace(cwd)
-	if err != nil {
-		hasWorkspace = false
-	}
-
-	if !hasWorkspace {
-		// Needs auto-init
-		var storageMode domain.StorageMode
-		var workflowLevel domain.WorkflowLevel
-
-		isInteractive := workspace.IsTerminal()
-
-		if isInteractive && openStorage == "" && openWorkflow == "" {
-			fmt.Fprintln(cmd.OutOrStdout(), "Workspace is not initialized. Let's set it up!")
-
-			// Prompt for Storage Mode
-			sChoice, err := workspace.AskChoice(os.Stdin, cmd.OutOrStdout(), "Select Storage Mode", []string{"local", "ignored", "global"}, "local")
-			if err != nil {
-				return fmt.Errorf("reading storage mode choice: %w", err)
-			}
-			storageMode, _ = domain.ParseStorageMode(sChoice)
-
-			// Prompt for Workflow Level
-			wChoice, err := workspace.AskChoice(os.Stdin, cmd.OutOrStdout(), "Select Workflow Level", []string{"strict", "light", "free"}, "strict")
-			if err != nil {
-				return fmt.Errorf("reading workflow level choice: %w", err)
-			}
-			workflowLevel, _ = domain.ParseWorkflowLevel(wChoice)
-		} else {
-			// Non-interactive or flags provided
-			sVal := "local"
-			if openStorage != "" {
-				sVal = openStorage
-			}
-			storageMode, err = domain.ParseStorageMode(sVal)
-			if err != nil {
-				return fmt.Errorf("invalid storage override: %w", err)
-			}
-
-			wVal := "strict"
-			if openWorkflow != "" {
-				wVal = openWorkflow
-			}
-			workflowLevel, err = domain.ParseWorkflowLevel(wVal)
-			if err != nil {
-				return fmt.Errorf("invalid workflow override: %w", err)
-			}
-		}
-
-		// Run initialization logic
-		hash, err := workspace.ProjectHash(cwd)
-		if err != nil {
-			return fmt.Errorf("computing project hash: %w", err)
-		}
-
-		homeDir, _ := os.UserHomeDir()
-		_, err = workspace.InitWorkspaceWithHome(cwd, homeDir, storageMode, workflowLevel, hash)
-		if err != nil {
-			return fmt.Errorf("auto-initializing workspace: %w", err)
-		}
-
-		// Append to gitignore if ignored storage
-		if storageMode == domain.StorageModeIgnored {
-			changesRelPath := ".sdlaic/changes/"
-			_ = storage.AppendToGitignore(cwd, changesRelPath)
-		}
-
-		// Register in global config
-		globalCfgPath := filepath.Join(homeDir, ".sdlaic", "config.json")
-		registerProject(globalCfgPath, hash, cwd, storageMode)
-
-		fmt.Fprintf(cmd.OutOrStdout(), "Auto-initialized SDLAIC workspace in %s\n", cwd)
+	if err := ensureProjectConfigured(cmd, cwd, os.Stdin, workspace.IsTerminal()); err != nil {
+		return err
 	}
 
 	// Prepare commands
@@ -188,29 +117,90 @@ func runOpenClaude(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// registerProject adds the project to the global config file.
-// TEMPORARY: moved here from init.go, which now registers via
-// config.UpdateProject. Removed when open is migrated in T16.
-func registerProject(globalCfgPath string, hash string, path string, storageMode domain.StorageMode) {
-	cfg, err := loadOrCreateGlobalConfig(globalCfgPath)
-	if err != nil {
-		return // Non-fatal: global config is optional
+// ensureProjectConfigured makes sure the current directory is a registered
+// project with a changes directory and a workflow, asking for anything missing.
+//
+// Values already stored are never re-asked, and flags win over prompts. In a
+// non-interactive session the documented defaults are used rather than blocking
+// on a prompt nobody can answer.
+func ensureProjectConfigured(cmd *cobra.Command, cwd string, in io.Reader, interactive bool) error {
+	out := cmd.OutOrStdout()
+
+	project, err := resolveProject()
+	switch {
+	case err == nil && project.ChangesDir != "" && project.Workflow != "":
+		return nil
+	case err != nil && !errors.Is(err, domain.ErrWorkspaceNotFound):
+		return err
 	}
 
-	cfg.Projects[hash] = domain.ProjectEntry{
-		Path:    path,
-		Storage: storageMode,
+	changesDir := project.ChangesDir
+	workflowLevel := project.Workflow
+
+	if openChangesDir != "" {
+		changesDir, err = storage.NormalizeChangesDir(openChangesDir, cwd, resolveHome())
+		if err != nil {
+			return fmt.Errorf("invalid --changes-dir flag: %w", err)
+		}
+	}
+	if openWorkflow != "" {
+		workflowLevel, err = domain.ParseWorkflowLevel(openWorkflow)
+		if err != nil {
+			return fmt.Errorf("invalid --workflow flag: %w", err)
+		}
 	}
 
-	_ = saveGlobalConfig(globalCfgPath, cfg)
-}
-
-func loadOrCreateGlobalConfig(path string) (domain.GlobalConfig, error) {
-	cfg, err := loadGlobalConfig(path)
-	if err != nil {
-		return domain.NewGlobalConfig(), nil
+	needsChangesDir := changesDir == ""
+	needsWorkflow := workflowLevel == ""
+	if (needsChangesDir || needsWorkflow) && interactive {
+		fmt.Fprintln(out, "This project is not set up yet. Let's fix that.")
 	}
-	return cfg, nil
+
+	// One prompter for both questions: a per-question scanner would read ahead
+	// and eat the next answer.
+	prompter := workspace.NewPrompter(in, out)
+
+	if needsChangesDir {
+		changesDir = storage.DefaultChangesDir(cwd)
+		if interactive {
+			choice, err := prompter.Choice(
+				"Where should change artifacts live?", []string{"default", "custom"}, "default")
+			if err != nil {
+				return fmt.Errorf("reading changes directory choice: %w", err)
+			}
+			if choice == "custom" {
+				entered, err := prompter.Line("Path", storage.DefaultChangesDir(cwd))
+				if err != nil {
+					return fmt.Errorf("reading changes directory: %w", err)
+				}
+				changesDir, err = storage.NormalizeChangesDir(entered, cwd, resolveHome())
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	if needsWorkflow {
+		workflowLevel = domain.WorkflowStrict
+		if interactive {
+			choice, err := prompter.Choice(
+				"Select Workflow Level", []string{"strict", "light", "free"}, "strict")
+			if err != nil {
+				return fmt.Errorf("reading workflow level choice: %w", err)
+			}
+			workflowLevel, _ = domain.ParseWorkflowLevel(choice)
+		}
+	}
+
+	if err := registerProjectEntry(cwd, changesDir, workflowLevel); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(out, "Configured SDLAIC project %s\n", cwd)
+	fmt.Fprintf(out, "  Changes:  %s\n", changesDir)
+	fmt.Fprintf(out, "  Workflow: %s\n", workflowLevel)
+	return nil
 }
 
 func runShellCmd(args ...string) error {
@@ -228,6 +218,6 @@ func resetOpenFlags() {
 	openNoSpawn = false
 	openPrint = false
 	openMarketplace = "bienwithcode/SDLAIC"
-	openStorage = ""
+	openChangesDir = ""
 	openWorkflow = ""
 }

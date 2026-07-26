@@ -135,3 +135,60 @@ func (p projectContext) setActiveChange(changeName string) error {
 func workspaceHash(dir string) (string, error) {
 	return workspace.ProjectHash(dir)
 }
+
+// registerProjectEntry writes a project's configuration to the global config,
+// after refusing a changes directory another project already owns. Shared by
+// init and open so the two cannot drift apart.
+func registerProjectEntry(cwd string, changesDir string, workflowLevel domain.WorkflowLevel) error {
+	hash, err := workspace.ProjectHash(cwd)
+	if err != nil {
+		return fmt.Errorf("computing project hash: %w", err)
+	}
+
+	cfgPath := globalConfigPath()
+	if err := ensureChangesDirUnclaimed(cfgPath, hash, changesDir); err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(changesDir, 0755); err != nil {
+		return fmt.Errorf("creating changes directory: %w", err)
+	}
+
+	if err := config.UpdateProject(cfgPath, hash, func(e *domain.ProjectEntry) {
+		e.Path = cwd
+		e.ChangesDir = changesDir
+		e.Workflow = workflowLevel
+	}); err != nil {
+		return fmt.Errorf("registering project: %w", err)
+	}
+
+	// TEMPORARY: commands not yet migrated still read .sdlaicrc. Only written for
+	// the in-project default, so an external changes dir stays zero-footprint.
+	// Removed in T17.
+	if changesDir == storage.DefaultChangesDir(cwd) {
+		local := domain.NewLocalConfig(domain.StorageModeLocal, workflowLevel, hash)
+		if err := config.SaveLocal(local, filepath.Join(cwd, ".sdlaicrc")); err != nil {
+			return fmt.Errorf("writing legacy local config: %w", err)
+		}
+	}
+	return nil
+}
+
+// ensureChangesDirUnclaimed rejects a directory already registered to a
+// different project. One changes directory belongs to exactly one project:
+// sharing one would make `list` mix projects, let `archive` overwrite another
+// project's tarball, and leave the same change carrying a different gate state
+// depending on which project you stand in.
+func ensureChangesDirUnclaimed(cfgPath string, hash string, changesDir string) error {
+	cfg, err := config.LoadOrCreateGlobal(cfgPath)
+	if err != nil {
+		return fmt.Errorf("loading global config: %w", err)
+	}
+	for otherHash, entry := range cfg.Projects {
+		if otherHash == hash || entry.ChangesDir != changesDir {
+			continue
+		}
+		return fmt.Errorf("changes directory %s is already used by project %s", changesDir, entry.Path)
+	}
+	return nil
+}

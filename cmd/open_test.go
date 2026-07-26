@@ -1,16 +1,34 @@
 package cmd
 
 import (
-	"encoding/json"
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bienwithcode/SDLAIC/internal/domain"
 )
+
+// initFixtureUnregistered chdirs into a fresh, unregistered project with an
+// isolated home.
+func initFixtureUnregistered(t *testing.T) (home string, dir string) {
+	t.Helper()
+	home = t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	oldHome := homeFlag
+	homeFlag = home
+	t.Cleanup(func() { homeFlag = oldHome })
+	chdirTo(t, dir)
+	return home, dir
+}
 
 func TestOpenClaude_PrintOnly_AlreadyInitialized(t *testing.T) {
 	resetOpenFlags()
@@ -24,77 +42,43 @@ func TestOpenClaude_PrintOnly_AlreadyInitialized(t *testing.T) {
 
 	assert.Contains(t, output, "claude plugin marketplace add bienwithcode/SDLAIC")
 	assert.Contains(t, output, "claude plugin install sdlaic@bienwithcode")
-	assert.NotContains(t, output, "Workspace is not initialized")
-	assert.NotContains(t, output, "Auto-initialized SDLAIC workspace")
+	assert.NotContains(t, output, "not set up yet")
+	assert.NotContains(t, output, "Configured SDLAIC project")
 }
 
-func TestOpenClaude_PrintOnly_AutoInitDefaults(t *testing.T) {
+func TestOpenClaude_PrintOnly_ConfiguresWithDefaults(t *testing.T) {
 	resetOpenFlags()
-	dir := t.TempDir()
-	oldWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(oldWd)
+	home, dir := initFixture(t)
+	homeFlag = home
 
-	// Stub home directory for testing global config updates
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", dir)
-	defer os.Setenv("HOME", oldHome)
-
-	output, err := ExecuteCommand(rootCmd, "open", "claude", "--print", "--no-spawn")
+	output, err := ExecuteCommand(rootCmd, "open", "claude", "--print", "--no-spawn", "--home", home)
 	require.NoError(t, err)
 
 	assert.Contains(t, output, "claude plugin marketplace add bienwithcode/SDLAIC")
-	assert.Contains(t, output, "claude plugin install sdlaic@bienwithcode")
-	assert.Contains(t, output, "Auto-initialized SDLAIC workspace")
+	assert.Contains(t, output, "Configured SDLAIC project")
 
-	// Verify workspace files were created
-	cfgPath := filepath.Join(dir, ".sdlaicrc")
-	_, err = os.Stat(cfgPath)
-	assert.NoError(t, err)
-
-	data, err := os.ReadFile(cfgPath)
-	require.NoError(t, err)
-
-	var cfg domain.LocalConfig
-	require.NoError(t, json.Unmarshal(data, &cfg))
-	assert.Equal(t, domain.StorageModeLocal, cfg.Storage)
-	assert.Equal(t, domain.WorkflowStrict, cfg.Workflow)
+	entry := globalEntry(t, home, dir)
+	assert.Equal(t, filepath.Join(dir, ".sdlaic", "changes"), entry.ChangesDir)
+	assert.Equal(t, domain.WorkflowStrict, entry.Workflow)
 }
 
-func TestOpenClaude_PrintOnly_AutoInitOverrides(t *testing.T) {
+func TestOpenClaude_PrintOnly_HonoursFlags(t *testing.T) {
 	resetOpenFlags()
-	dir := t.TempDir()
-	oldWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(oldWd)
+	home, dir := initFixture(t)
+	homeFlag = home
+	external := filepath.Join(t.TempDir(), "openspec", "changes")
 
-	// Stub home directory for testing global config updates
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", dir)
-	defer os.Setenv("HOME", oldHome)
-
-	output, err := ExecuteCommand(rootCmd, "open", "claude", "--print", "--no-spawn", "--storage=ignored", "--workflow=light")
+	_, err := ExecuteCommand(rootCmd, "open", "claude", "--print", "--no-spawn",
+		"--home", home, "--changes-dir", external, "--workflow=light")
 	require.NoError(t, err)
 
-	assert.Contains(t, output, "claude plugin marketplace add bienwithcode/SDLAIC")
-	assert.Contains(t, output, "claude plugin install sdlaic@bienwithcode")
-	assert.Contains(t, output, "Auto-initialized SDLAIC workspace")
+	entry := globalEntry(t, home, dir)
+	assert.Equal(t, external, entry.ChangesDir)
+	assert.Equal(t, domain.WorkflowLight, entry.Workflow)
 
-	// Verify workspace files were created with correct overrides
-	cfgPath := filepath.Join(dir, ".sdlaicrc")
-	data, err := os.ReadFile(cfgPath)
+	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
-
-	var cfg domain.LocalConfig
-	require.NoError(t, json.Unmarshal(data, &cfg))
-	assert.Equal(t, domain.StorageModeIgnored, cfg.Storage)
-	assert.Equal(t, domain.WorkflowLight, cfg.Workflow)
-
-	// Gitignore should have changes folder appended
-	gitIgnorePath := filepath.Join(dir, ".gitignore")
-	gitIgnoreData, err := os.ReadFile(gitIgnorePath)
-	assert.NoError(t, err)
-	assert.Contains(t, string(gitIgnoreData), ".sdlaic/changes/")
+	assert.Empty(t, entries, "an external changes dir leaves the project untouched")
 }
 
 func TestOpenClaude_PrintOnly_MarketplaceOverride(t *testing.T) {
@@ -116,4 +100,72 @@ func TestOpenCodex_Stub(t *testing.T) {
 	output, err := ExecuteCommand(rootCmd, "open", "codex")
 	require.NoError(t, err)
 	assert.Contains(t, output, "coming in a later release")
+}
+
+// --- ensureProjectConfigured: prompt behaviour ---
+//
+// Driven through a scripted reader rather than a real TTY, so the interactive
+// path is covered without the test needing a terminal.
+
+func TestEnsureProjectConfigured_PromptsForDefaultLayout(t *testing.T) {
+	resetOpenFlags()
+	home, dir := initFixtureUnregistered(t)
+
+	// "default" changes dir, then "light" workflow.
+	require.NoError(t, ensureProjectConfigured(rootCmd, dir, strings.NewReader("default\nlight\n"), true))
+
+	entry := globalEntry(t, home, dir)
+	assert.Equal(t, filepath.Join(dir, ".sdlaic", "changes"), entry.ChangesDir)
+	assert.Equal(t, domain.WorkflowLight, entry.Workflow)
+}
+
+func TestEnsureProjectConfigured_PromptsForCustomPath(t *testing.T) {
+	resetOpenFlags()
+	home, dir := initFixtureUnregistered(t)
+	custom := filepath.Join(t.TempDir(), "openspec", "changes")
+
+	require.NoError(t, ensureProjectConfigured(rootCmd, dir, strings.NewReader("custom\n"+custom+"\nstrict\n"), true))
+
+	assert.Equal(t, custom, globalEntry(t, home, dir).ChangesDir)
+}
+
+func TestEnsureProjectConfigured_NonInteractiveUsesDefaults(t *testing.T) {
+	resetOpenFlags()
+	home, dir := initFixtureUnregistered(t)
+
+	// An empty reader would block a prompt; non-interactive must not ask at all.
+	require.NoError(t, ensureProjectConfigured(rootCmd, dir, strings.NewReader(""), false))
+
+	entry := globalEntry(t, home, dir)
+	assert.Equal(t, filepath.Join(dir, ".sdlaic", "changes"), entry.ChangesDir)
+	assert.Equal(t, domain.WorkflowStrict, entry.Workflow)
+}
+
+func TestEnsureProjectConfigured_SkipsPromptWhenAlreadyConfigured(t *testing.T) {
+	resetOpenFlags()
+	dir := TempWorkspace(t)
+	chdirTo(t, dir)
+
+	var out bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&out)
+
+	require.NoError(t, ensureProjectConfigured(cmd, dir, strings.NewReader(""), true))
+
+	assert.Empty(t, out.String(), "a configured project must not be asked anything")
+}
+
+func TestEnsureProjectConfigured_FlagsBeatPrompts(t *testing.T) {
+	resetOpenFlags()
+	home, dir := initFixtureUnregistered(t)
+	external := filepath.Join(t.TempDir(), "flagged", "changes")
+	openChangesDir = external
+	openWorkflow = "free"
+	t.Cleanup(resetOpenFlags)
+
+	require.NoError(t, ensureProjectConfigured(rootCmd, dir, strings.NewReader(""), true))
+
+	entry := globalEntry(t, home, dir)
+	assert.Equal(t, external, entry.ChangesDir)
+	assert.Equal(t, domain.WorkflowFree, entry.Workflow)
 }
