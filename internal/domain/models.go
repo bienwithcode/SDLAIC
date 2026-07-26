@@ -422,6 +422,7 @@ var (
 	ErrChangeNotFound      = errors.New("change not found")
 	ErrChangeAlreadyExists = errors.New("change already exists")
 	ErrNoActiveChange      = errors.New("no active change set; use --change flag or sdlaic switch")
+	ErrChangesDirNotSet    = errors.New("no changes directory configured for this project; run 'sdlaic init --changes-dir <path>'")
 	ErrInvalidArtifact     = errors.New("invalid artifact type")
 	ErrValidationFailed    = errors.New("validation failed")
 	ErrInvalidVerdict      = errors.New("invalid verdict")
