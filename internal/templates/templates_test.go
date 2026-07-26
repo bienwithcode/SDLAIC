@@ -99,3 +99,13 @@ func TestTemplateContent_NoPlaceholders(t *testing.T) {
 		})
 	}
 }
+
+func TestTasksTemplate_HasCommitCheckpoint(t *testing.T) {
+	// The tasks template must model the per-section [COMMIT] checkpoint that
+	// skills/apply requires ("No exceptions") — otherwise plans scaffolded from
+	// `sdlaic instructions tasks` violate the apply contract from the start.
+	content, err := GetTemplate(domain.ArtifactTasks)
+	require.NoError(t, err)
+	assert.True(t, strings.Contains(content, "[COMMIT]"),
+		"tasks template should include a [COMMIT] checkpoint per milestone")
+}

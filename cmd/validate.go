@@ -152,8 +152,12 @@ func runValidate(cmd *cobra.Command, args []string) error {
 			}
 
 			if gateKey != "" {
-				if g, ok := gf.Gates[gateKey]; ok && g.Status == domain.GateStatusSkipped {
-					continue // explicitly skipped, no artifact required
+				// Only an EXPLICIT skip (gate set --status skipped, SkippedAt set) exempts
+				// the artifact. An auto-skip from a light/free default (SkippedAt nil) must
+				// still require the artifact, so tightening a change into strict does not
+				// silently trust unreviewed work (matches Gate.IsPassingFor).
+				if g, ok := gf.Gates[gateKey]; ok && g.Status == domain.GateStatusSkipped && g.SkippedAt != nil {
+					continue
 				}
 			}
 
@@ -199,15 +203,57 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// hasPlaceholder checks if content contains {{...}} template placeholders or untouched template comments.
+// placeholderAngle matches a template angle-bracket token, e.g. <change-name>,
+// <exact command>, <KEY>. It is letter-led so it ignores HTML-comment openers
+// (<!--), comparison operators (<5, < b), and the arrow (->, <-).
+var placeholderAngle = regexp.MustCompile(`<[A-Za-z][A-Za-z0-9 _./-]*>`)
+
+// placeholderBracket matches a [...] span, capturing the inner text.
+var placeholderBracket = regexp.MustCompile(`\[([^\[\]]*)\]`)
+
+// checkboxInner matches the inner text of a markdown checkbox glyph ([ ] / [x]).
+var checkboxInner = regexp.MustCompile(`(?i)^\s*x?\s*$`)
+
+// knownTDDTag matches the structural task tags used in tasks.md (see skills/plan
+// and skills/apply). These are real content, not fill-in placeholders, so they
+// are excluded from bracket-placeholder detection.
+var knownTDDTag = regexp.MustCompile(`^(TEST-RED:(unit|feature|e2e)|IMPL|VERIFY|WIRING|REFACTOR|NO-TEST|COMMIT)$`)
+
+// placeholderComment matches an instructional HTML comment by leading verb. The
+// verbs cover every template comment; "Populated"/"From" cover the grill log rows.
+var placeholderComment = regexp.MustCompile(`<!--\s*(Describe|Provide|List|Define|One-paragraph|State|Impact|Security|Backward|New|Requirement|What|Address|Task|Any additional|component|workflow|describe|information|Populated|From)\b`)
+
+// hasPlaceholder reports whether content still contains unfilled template
+// placeholders: mustache {{...}}, angle tokens like <change-name>, bracket
+// fill-ins like [One paragraph: ...], or instructional HTML comments. Markdown
+// checkbox glyphs ([ ]/[x]), the known TDD task tags, and markdown link targets
+// ([text](url)) are excluded so legitimate tasks.md content is not flagged.
 func hasPlaceholder(content string) bool {
-	// Matches curly braces: {{...}}
+	// Mustache: {{...}}
 	if regexp.MustCompile(`\{\{.*?\}\}`).MatchString(content) {
 		return true
 	}
-	// Matches template comment instructions starting with typical instruction verbs
-	instructionRe := regexp.MustCompile(`<!--\s*(Describe|Provide|List|Define|One-paragraph|State|Impact|Security|Backward|New|Requirement|What|Address|Task|Any additional|component|workflow|describe|information)\b`)
-	return instructionRe.MatchString(content)
+	// Angle-bracket token: <change-name>, <exact command>, ...
+	if placeholderAngle.MatchString(content) {
+		return true
+	}
+	// Bracket fill-in: flag any inner text that is not a checkbox, a known TDD
+	// tag, or a markdown link target.
+	for _, m := range placeholderBracket.FindAllStringSubmatchIndex(content, -1) {
+		inner := content[m[2]:m[3]] // first capture group (text inside the brackets)
+		if checkboxInner.MatchString(inner) {
+			continue
+		}
+		if knownTDDTag.MatchString(inner) {
+			continue
+		}
+		if m[1] < len(content) && content[m[1]] == '(' {
+			continue // markdown link: [text](url)
+		}
+		return true
+	}
+	// Instructional HTML comment: <!-- Describe ... -->
+	return placeholderComment.MatchString(content)
 }
 
 // hasCheckbox checks if content contains markdown checkbox syntax.

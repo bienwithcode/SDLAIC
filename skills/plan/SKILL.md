@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Use after the proposal has been approved. Translates the proposal into granular, ordered TDD task pairs — each behavioral task must have a failing test written before implementation. Each task must be completable in a single focused session.
+description: Use after the design phase is approved (proposal → spec → design complete). Translates the approved design into granular, ordered TDD task pairs — each behavioral task must have a failing test written before implementation. Each task must be completable in a single focused session.
 ---
 
 # Planning Phase

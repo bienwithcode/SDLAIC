@@ -6,11 +6,16 @@
       `<test-command-to-run-specific-test>` → FAIL
 - [ ] 1.2 **[IMPL]** Add `[ImplementationName]` to pass 1.1.
       GREEN: `<test-command-to-run-specific-test>` → PASS
-- [ ] 1.N **[VERIFY]** Milestone Integration Verification — <subsystem> integrates end-to-end.
+- [ ] 1.3 **[VERIFY]** Milestone Integration Verification — <subsystem> integrates end-to-end.
       Verify: `<command exercising the whole milestone>`
+- [ ] 1.4 **[COMMIT]** `<prefix>: <milestone-1 summary>`
 
 ## Milestone 2: <Next subsystem>
-[...]
+- [ ] 2.1 **[TEST-RED:unit]** Add `[TestName]` — assert [behavior].
+      `<test-command-to-run-specific-test>` → FAIL
+- [ ] 2.2 **[IMPL]** Add `[ImplementationName]` to pass 2.1.
+      GREEN: `<test-command-to-run-specific-test>` → PASS
+- [ ] 2.N **[COMMIT]** `<prefix>: <milestone-2 summary>`
 
 ## Completion
 - [ ] Run full project test suite: `<exact command>`
