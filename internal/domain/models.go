@@ -193,6 +193,10 @@ type ProjectEntry struct {
 	Storage      StorageMode   `json:"storage"`
 }
 
+// GlobalConfigVersion is the schema version this build writes. Older files are
+// still readable; touching one upgrades it in place.
+const GlobalConfigVersion = 2
+
 // GlobalConfig represents the ~/.sdlaic/config.json file.
 type GlobalConfig struct {
 	Version         int                     `json:"version"`
@@ -208,7 +212,7 @@ type GlobalConfig struct {
 // ChangesDir routes the project into the CLI's "not configured yet" prompt.
 func NewGlobalConfig() GlobalConfig {
 	return GlobalConfig{
-		Version:         2,
+		Version:         GlobalConfigVersion,
 		DefaultWorkflow: WorkflowStrict,
 		DefaultStorage:  StorageModeLocal,
 		Projects:        make(map[string]ProjectEntry),

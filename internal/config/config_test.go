@@ -206,6 +206,127 @@ func TestLoadGlobal_PreservesProjectWorkflowAndActiveChange(t *testing.T) {
 	assert.Equal(t, "SDL-1", entry.ActiveChange)
 }
 
+// --- UpdateProject / LoadOrCreateGlobal tests ---
+
+func TestUpdateProject_LeavesSiblingEntriesIntact(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+
+	seed := domain.NewGlobalConfig()
+	seed.Projects["aaa"] = domain.ProjectEntry{Path: "/tmp/a", ChangesDir: "/tmp/a/changes", ActiveChange: "A-1"}
+	require.NoError(t, SaveGlobal(seed, cfgPath))
+
+	require.NoError(t, UpdateProject(cfgPath, "bbb", func(e *domain.ProjectEntry) {
+		e.Path = "/tmp/b"
+		e.ChangesDir = "/tmp/b/changes"
+	}))
+
+	got, err := LoadGlobal(cfgPath)
+	require.NoError(t, err)
+	assert.Equal(t, "A-1", got.Projects["aaa"].ActiveChange, "writing project bbb must not clobber aaa")
+	assert.Equal(t, "/tmp/b/changes", got.Projects["bbb"].ChangesDir)
+}
+
+func TestUpdateProject_MutatesExistingEntry(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+
+	seed := domain.NewGlobalConfig()
+	seed.Projects["aaa"] = domain.ProjectEntry{Path: "/tmp/a", ChangesDir: "/tmp/a/changes"}
+	require.NoError(t, SaveGlobal(seed, cfgPath))
+
+	require.NoError(t, UpdateProject(cfgPath, "aaa", func(e *domain.ProjectEntry) {
+		e.ActiveChange = "SDL-9"
+	}))
+
+	got, err := LoadGlobal(cfgPath)
+	require.NoError(t, err)
+	assert.Equal(t, "SDL-9", got.Projects["aaa"].ActiveChange)
+	assert.Equal(t, "/tmp/a/changes", got.Projects["aaa"].ChangesDir, "untouched fields survive")
+}
+
+func TestUpdateProject_RewritesV1FileAsV2(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+
+	v1 := `{"version":1,"default_workflow":"strict","default_storage":"local",
+	        "projects":{"aaa":{"path":"/tmp/a","storage":"local"}}}`
+	require.NoError(t, os.WriteFile(cfgPath, []byte(v1), 0644))
+
+	require.NoError(t, UpdateProject(cfgPath, "aaa", func(e *domain.ProjectEntry) {
+		e.ChangesDir = "/tmp/a/changes"
+	}))
+
+	got, err := LoadGlobal(cfgPath)
+	require.NoError(t, err)
+	assert.Equal(t, domain.GlobalConfigVersion, got.Version, "a touched v1 file is upgraded in place")
+	assert.Equal(t, "/tmp/a/changes", got.Projects["aaa"].ChangesDir)
+}
+
+func TestUpdateProject_CreatesFileWhenMissing(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, ".sdlaic", "config.json")
+
+	require.NoError(t, UpdateProject(cfgPath, "aaa", func(e *domain.ProjectEntry) {
+		e.Path = "/tmp/a"
+	}))
+
+	got, err := LoadGlobal(cfgPath)
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/a", got.Projects["aaa"].Path)
+}
+
+func TestSaveGlobal_LeavesNoTempFileBehind(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+
+	require.NoError(t, SaveGlobal(domain.NewGlobalConfig(), cfgPath))
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "atomic write must not leave a temp file next to the config")
+	assert.Equal(t, "config.json", entries[0].Name())
+}
+
+func TestSaveGlobal_FailedWriteLeavesOriginalIntact(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+
+	good := domain.NewGlobalConfig()
+	good.Projects["aaa"] = domain.ProjectEntry{Path: "/tmp/a", ChangesDir: "/tmp/a/changes"}
+	require.NoError(t, SaveGlobal(good, cfgPath))
+
+	// Make the directory read-only so the temp file cannot be created; the rename
+	// never happens and the previously written config must survive untouched.
+	require.NoError(t, os.Chmod(dir, 0500))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0700) })
+
+	broken := domain.NewGlobalConfig()
+	broken.Projects["zzz"] = domain.ProjectEntry{Path: "/tmp/z"}
+	assert.Error(t, SaveGlobal(broken, cfgPath))
+
+	got, err := LoadGlobal(cfgPath)
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/a/changes", got.Projects["aaa"].ChangesDir)
+	assert.NotContains(t, got.Projects, "zzz")
+}
+
+func TestLoadOrCreateGlobal_ReturnsDefaultsWhenMissing(t *testing.T) {
+	cfg, err := LoadOrCreateGlobal(filepath.Join(t.TempDir(), "config.json"))
+	require.NoError(t, err)
+	assert.Equal(t, domain.GlobalConfigVersion, cfg.Version)
+	assert.NotNil(t, cfg.Projects)
+}
+
+func TestLoadOrCreateGlobal_PropagatesMalformedFile(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+	require.NoError(t, os.WriteFile(cfgPath, []byte("{broken"), 0644))
+
+	_, err := LoadOrCreateGlobal(cfgPath)
+	assert.Error(t, err, "a corrupt config must not be silently replaced with defaults")
+}
+
 func TestValidateGlobal_AcceptsV1AndV2(t *testing.T) {
 	for _, version := range []int{1, 2} {
 		cfg := domain.GlobalConfig{
