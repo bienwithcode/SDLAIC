@@ -12,11 +12,11 @@ Artifact management — workspace init, change lifecycle, templating, validation
 
 Key packages:
 - `cmd/` — Cobra commands. Each command file (`init.go`, `new.go`, `status.go`, etc.) has a matching `_test.go`.
-- `internal/domain/` — shared types: `StorageMode`, `WorkflowLevel`, `Phase`, `ArtifactType`, sentinel errors.
+- `internal/domain/` — shared types: `WorkflowLevel`, `Phase`, `ArtifactType`, `ProjectEntry`/`GlobalConfig`, sentinel errors.
 - `internal/state/` — determines phase from artifact file presence.
-- `internal/storage/` — resolves change path by storage mode, git integration.
-- `internal/config/` — reads/writes `.sdlaicrc` (local) and `~/.sdlaic/config.json` (global).
-- `internal/workspace/` — walks up from cwd to find `.sdlaicrc`.
+- `internal/storage/` — resolves artifact paths from a project's configured changes directory.
+- `internal/config/` — reads/writes `~/.sdlaic/config.json`, the single store of project state.
+- `internal/workspace/` — matches cwd against the registered projects in the global config.
 - `internal/templates/` — artifact template rendering.
 
 State machine: the CLI does **not** own one. It tracks artifact files (`internal/state`) and gate verdicts (`internal/gatestate`, stored at `~/.sdlaic/state/<hash>/<change>/meta.json`). The `enforcer` skill (Part 2) infers phase from artifact presence **AND** gate status — a phase unblocks only when its artifact exists and its gate is `approved`/`skipped`.
@@ -98,7 +98,7 @@ No external services needed for tests. Tests use temp directories via `t.TempDir
 
 - Unit tests only — no integration tests, no network calls
 - Each `cmd/*.go` has a `cmd/*_test.go` with the same name
-- Test setup: `initWorkspaceForTest(t)` creates a temp dir with `.sdlaicrc` and returns its path
+- Test setup: `initWorkspaceForTest(t)` registers a temp project against a temp home and returns its path. Never let a test touch the real `~/.sdlaic` — pass `--home` or set `SDLAIC_HOME`.
 - Use `ExecuteCommand(rootCmd, args...)` to test CLI commands — it captures output
 - Use `require` for setup steps (fail fast), `assert` for assertions (collect all failures)
 - Reset Cobra flags in each test: call `resetXxxFlags()` at the top
@@ -112,7 +112,7 @@ Skills are Markdown — no automated tests. Validation is:
 ## Security Considerations
 
 - **No secrets in artifacts.** `context.md` may contain Jira ticket content — never store API tokens or credentials in change directories.
-- **`.sdlaicrc` is project-local.** Contains `active_change` and `project_hash` only. No sensitive data.
-- **`--storage global` mode** stores artifacts in `~/.sdlaic/` — ensure proper file permissions on multi-user machines.
+- **All project state is in `~/.sdlaic/config.json`.** Paths, workflow, and active change only — no sensitive data. Nothing is written inside the project except the changes directory.
+- **A changes directory outside the project** (or gate state in `~/.sdlaic/`) — ensure proper file permissions on multi-user machines.
 - **No network calls from the CLI.** Jira interaction happens in the AI agent (skill `new`), not in `sdlaic` binary.
 - **Template rendering** is string-based, no eval/exec. Artifacts are plain Markdown.

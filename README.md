@@ -90,10 +90,11 @@ Gate verdicts are stored **outside your repo** (see [Gate State](#gate-state)), 
 
 ## Artifacts
 
-Each phase writes one artifact under `.sdlaic/changes/<change-name>/`:
+Each phase writes one artifact under the project's changes directory. Ask the
+CLI where that is — `sdlaic path changes` — rather than assuming a location:
 
 ```
-.sdlaic/changes/<change-name>/
+$(sdlaic path change --change <change-name>)/
 ├── context.md           # Ticket description, research summary, actors & use cases
 ├── proposal.md          # Scope contract: why, IN/OUT-OF-SCOPE, impact
 ├── specs/               # Behavioral requirements (if user-facing)
@@ -149,13 +150,40 @@ sdlaic archive <name>                 # Archive a completed change
 
 ---
 
-## Storage Modes
+## Where Artifacts Live
 
-| Mode | Location | Tracked by git |
-|------|----------|----------------|
-| `local` | `<project>/.sdlaic/changes/` | Yes |
-| `ignored` | `<project>/.sdlaic/changes/` | No (auto-added to .gitignore) |
-| `global` | `~/.sdlaic/stores/<hash>/changes/` | No |
+Each project's changes directory is recorded in `~/.sdlaic/config.json`. It
+defaults to `<project>/.sdlaic/changes/`, and `--changes-dir` puts it anywhere
+you like:
+
+```bash
+sdlaic init                                        # <project>/.sdlaic/changes/
+sdlaic init --changes-dir ~/work/openspec/changes  # outside the project entirely
+sdlaic config set changes-dir <path>               # change it later
+sdlaic path changes                                # print the resolved location
+```
+
+When the directory sits outside the project, SDLAIC creates **nothing** inside
+it — no config file, no `.sdlaic/` directory. One directory belongs to exactly
+one project; pointing a second project at the same one is rejected.
+
+SDLAIC never writes to your `.gitignore`. If you want artifacts kept out of the
+repo, either add the entry yourself or put the directory outside the repo.
+
+
+### Upgrading from a storage-mode release
+
+`storage_mode` in `sdlaic status --json` is replaced by `changes_dir`, an
+absolute path — a **breaking change** for anything parsing that output.
+
+The `local`, `ignored`, and `global` storage modes are gone, along with the
+project-local `.sdlaicrc`. Existing files are left on disk and ignored; run
+`sdlaic init` once per project to register it. An old `~/.sdlaic/config.json`
+still loads — its obsolete fields are dropped, and each project is treated as
+needing a changes directory. Artifacts previously kept in
+`~/.sdlaic/stores/<hash>/changes/` are not migrated or deleted; point a project
+at them with `sdlaic config set changes-dir ~/.sdlaic/stores/<hash>/changes` if
+you want them back.
 
 ---
 
