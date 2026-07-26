@@ -2,10 +2,17 @@
 
 ## Directory Structure
 
-All change artifacts live under:
+All change artifacts live under the project's configured changes directory.
+Never assume a path — ask the CLI, because the location is per-project
+configuration and may sit outside the project entirely:
 ```
-.sdlaic/changes/<change-name>/
+sdlaic path changes                      # the directory holding all changes
+sdlaic path change --change <name>       # one change's directory
 ```
+It defaults to `<project-root>/.sdlaic/changes/`, but `sdlaic init
+--changes-dir <path>` can point it anywhere — for example at a shared
+specifications repo — in which case SDLAIC creates nothing inside the project
+at all.
 
 Gate verdicts live OUTSIDE the project repo, in the global state store:
 ```
@@ -18,7 +25,8 @@ Gate verdicts live OUTSIDE the project repo, in the global state store:
 > **Two `review.md` files, two purposes.** The global `review.md` above is a
 > machine-generated mirror of gate verdicts, written by the CLI. The pre-PR code
 > audit produced by `skills/review` is a *separate* artifact written to
-> `.sdlaic/changes/<change-name>/review.md` inside the project repo.
+> `$(sdlaic path change --change <change-name>)/review.md`, alongside the other
+> change artifacts.
 
 ## Phase-Gated Flow
 
@@ -66,12 +74,12 @@ without both.
 | DESIGNED | `design.md` | design | Technical architecture |
 | PLANNED | `tasks.md` | tasks | Ordered TDD tasks by subsystem milestone |
 | IMPLEMENTED | Committed code | — | Source changes |
-| (audit) | `.sdlaic/changes/<change-name>/review.md` | — | Final pre-PR code audit |
+| (audit) | `review.md` (in the change directory) | — | Final pre-PR code audit |
 
 ### Full Artifact Structure
 
 ```
-.sdlaic/changes/<change-name>/
+$(sdlaic path change --change <change-name>)/
 ├── context.md                          # Optional: ticket + research context
 ├── proposal.md                         # Scope contract — written 1st
 ├── specs/                              # Written 2nd (if user-facing), before design

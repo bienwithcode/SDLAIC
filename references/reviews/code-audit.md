@@ -41,7 +41,7 @@ Each pass returns an independent verdict (APPROVE / REQUEST_CHANGES / REJECT):
 - **REJECT** — either pass REJECTs (contract violation or critical quality defect).
 
 Record the merged result and both pass outputs verbatim in
-`.sdlaic/changes/<name>/review.md` (see `skills/review` for the full template).
+`$(sdlaic path change --change <name>)/review.md` (see `skills/review` for the full template).
 
 ## Severity guide
 

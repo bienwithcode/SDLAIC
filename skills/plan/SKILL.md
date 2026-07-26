@@ -169,7 +169,7 @@ Cross-check every success criterion from `proposal.md` against the tasks:
 sdlaic instructions tasks --change <name>
 ```
 
-Review the instructions output for template guidance, then write the full task list to `.sdlaic/changes/<name>/tasks.md`:
+Review the instructions output for template guidance, then write the full task list to `$(sdlaic path change --change <name>)/tasks.md`:
 
 ```markdown
 # Tasks: <change-name>
@@ -200,7 +200,7 @@ section with the full test suite command and manual QA steps.
 
 ## Output Artifacts
 
-- `.sdlaic/changes/<name>/tasks.md` — ordered TDD task list with RED/GREEN checks
+- `$(sdlaic path change --change <name>)/tasks.md` — ordered TDD task list with RED/GREEN checks
 
 ## Verification
 

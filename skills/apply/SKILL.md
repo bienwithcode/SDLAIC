@@ -19,7 +19,7 @@ One task at a time. Verify each before moving on. No extras, no scope creep.
 
 ### Step 1: Read the Plan
 
-Read `.sdlaic/changes/<name>/tasks.md` in full. Identify:
+Read `$(sdlaic path change --change <name>)/tasks.md` in full. Identify:
 - The first uncompleted task
 - Its dependencies (must all be completed)
 - Its verification command
@@ -82,7 +82,7 @@ Run the command exactly as written; do not paraphrase.
 1. Check off **every** task checkbox in this section that has been verified: `[TEST-RED:*]`, `[IMPL]`, and any `[WIRING]` / `[REFACTOR]` tasks. (Each was verified in turn before reaching this `[COMMIT]`.)
 2. Stage all files changed by this section **plus** `tasks.md`:
    ```bash
-   git add <impl-files> <test-files> <wiring-files> .sdlaic/changes/<name>/tasks.md
+   git add <impl-files> <test-files> <wiring-files> "$(sdlaic path change --change <name>)/tasks.md"
    ```
 3. Commit using the message from the `[COMMIT]` task line verbatim:
    ```bash

@@ -181,7 +181,7 @@ Combine both subagent outputs into the final `review.md`:
 4. **Technical Assessment:** Copy Agent B's output as-is — sections, verdicts, tables, findings. Do not paraphrase or re-evaluate.
 5. **Final verdict:** Determined by the two independent verdicts following the Verdict Rules below. The orchestrator does not add its own verdict.
 
-Write the review to `.sdlaic/changes/<name>/review.md` with this structure:
+Write the review to `$(sdlaic path change --change <name>)/review.md` with this structure:
 
 ```markdown
 ### Steps taken
@@ -262,7 +262,7 @@ Write the review to `.sdlaic/changes/<name>/review.md` with this structure:
 
 ### Step 4: Save and Advance
 
-Write the review to `.sdlaic/changes/<name>/review.md`.
+Write the review to `$(sdlaic path change --change <name>)/review.md`.
 
 Note: `review` is a plugin-specific artifact, not a standard SDLAIC artifact. Write the file directly — no CLI command needed.
 
@@ -278,7 +278,7 @@ The two verdicts are **independent**. Compliance can APPROVE while Technical REQ
 
 ## Output Artifacts
 
-- `.sdlaic/changes/<name>/review.md` — structured dual-assessment review with independent verdicts
+- `$(sdlaic path change --change <name>)/review.md` — structured dual-assessment review with independent verdicts
 
 ## Verification
 
