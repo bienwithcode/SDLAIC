@@ -11,8 +11,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/bienwithcode/SDLAIC/internal/domain"
-	"github.com/bienwithcode/SDLAIC/internal/storage"
-	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
 
 // archiveCmd represents the `sdlaic archive` command.
@@ -33,27 +31,12 @@ func init() {
 func runArchive(cmd *cobra.Command, args []string) error {
 	changeName := args[0]
 
-	// Find workspace
-	cwd, err := os.Getwd()
+	project, err := resolveProject()
 	if err != nil {
-		return fmt.Errorf("getting current directory: %w", err)
+		return err
 	}
 
-	root, err := workspace.FindWorkspace(cwd)
-	if err != nil {
-		return fmt.Errorf("no SDLAIC workspace found: %w", err)
-	}
-
-	workspaceRoot = root
-
-	cfg, err := loadLocalConfig()
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
-	}
-
-	// Resolve change path
-	homeDir, _ := os.UserHomeDir()
-	changePath, err := storage.ResolvePath(cfg.Storage, root, homeDir, changeName)
+	changePath, err := project.changePath(changeName)
 	if err != nil {
 		return fmt.Errorf("resolving change path: %w", err)
 	}
@@ -64,9 +47,9 @@ func runArchive(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create .archive directory
-	basePath, err := storage.ChangesBasePath(cfg.Storage, root, homeDir)
+	basePath, err := project.changesDir()
 	if err != nil {
-		return fmt.Errorf("resolving base path: %w", err)
+		return err
 	}
 	archiveDir := filepath.Join(basePath, ".archive")
 	if err := os.MkdirAll(archiveDir, 0755); err != nil {
@@ -85,9 +68,8 @@ func runArchive(cmd *cobra.Command, args []string) error {
 	}
 
 	// Clear active change if it was this one
-	if cfg.ActiveChange == changeName {
-		cfg.ActiveChange = ""
-		if err := saveLocalConfig(cfg); err != nil {
+	if project.ActiveChange == changeName {
+		if err := project.setActiveChange(""); err != nil {
 			return fmt.Errorf("clearing active change: %w", err)
 		}
 	}
