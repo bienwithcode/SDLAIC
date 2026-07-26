@@ -12,160 +12,139 @@ import (
 	"github.com/bienwithcode/SDLAIC/internal/domain"
 )
 
-func TestInit_CreatesWorkspace(t *testing.T) {
+// initFixture chdirs into a fresh project directory with an isolated home, and
+// returns both paths. Flags are reset so a previous test's values cannot leak.
+func initFixture(t *testing.T) (home string, dir string) {
+	t.Helper()
 	resetInitFlags()
-	dir := t.TempDir()
-	oldWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(oldWd)
+	home = t.TempDir()
 
-	_, err := ExecuteCommand(rootCmd, "init")
+	// Resolve the project dir the same way the CLI does: os.Getwd returns the
+	// symlink-free form, so a raw t.TempDir() would not compare equal.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 
-	// .sdlaicrc should exist
-	_, err = os.Stat(filepath.Join(dir, ".sdlaicrc"))
-	assert.NoError(t, err)
-
-	// Default: local mode → .sdlaic/changes/ should exist
-	_, err = os.Stat(filepath.Join(dir, ".sdlaic", "changes"))
-	assert.NoError(t, err)
+	oldWd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(dir))
+	t.Cleanup(func() {
+		_ = os.Chdir(oldWd)
+		resetInitFlags()
+	})
+	return home, dir
 }
 
-func TestInit_RejectsReInit(t *testing.T) {
-	resetInitFlags()
-	dir := t.TempDir()
-	oldWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(oldWd)
-
-	// First init should succeed
-	_, err := ExecuteCommand(rootCmd, "init")
+// globalEntry reads back the single project entry registered for dir.
+func globalEntry(t *testing.T, home string, dir string) domain.ProjectEntry {
+	t.Helper()
+	cfg, err := config.LoadGlobal(filepath.Join(home, ".sdlaic", "config.json"))
 	require.NoError(t, err)
-
-	// Second init should fail
-	_, err = ExecuteCommand(rootCmd, "init")
-	assert.Error(t, err)
+	hash, err := workspaceHash(dir)
+	require.NoError(t, err)
+	entry, ok := cfg.Projects[hash]
+	require.True(t, ok, "project should be registered in the global config")
+	return entry
 }
 
-func TestInit_StorageLocal(t *testing.T) {
-	resetInitFlags()
-	dir := t.TempDir()
-	oldWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(oldWd)
+func TestInit_RegistersProjectWithDefaultChangesDir(t *testing.T) {
+	home, dir := initFixture(t)
 
-	_, err := ExecuteCommand(rootCmd, "init", "--storage", "local")
+	_, err := ExecuteCommand(rootCmd, "init", "--home", home)
 	require.NoError(t, err)
 
-	// Should create .sdlaic/changes/
-	changesDir := filepath.Join(dir, ".sdlaic", "changes")
-	_, err = os.Stat(changesDir)
-	assert.NoError(t, err)
-
-	// Config should reflect local storage
-	cfg, err := config.LoadLocal(filepath.Join(dir, ".sdlaicrc"))
-	require.NoError(t, err)
-	assert.Equal(t, domain.StorageModeLocal, cfg.Storage)
+	entry := globalEntry(t, home, dir)
+	assert.Equal(t, filepath.Join(dir, ".sdlaic", "changes"), entry.ChangesDir)
+	assert.Equal(t, domain.WorkflowStrict, entry.Workflow)
+	assert.DirExists(t, filepath.Join(dir, ".sdlaic", "changes"))
 }
 
-func TestInit_StorageIgnored(t *testing.T) {
-	resetInitFlags()
-	dir := t.TempDir()
-	oldWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(oldWd)
+func TestInit_ExternalChangesDirLeavesProjectUntouched(t *testing.T) {
+	home, dir := initFixture(t)
+	external := filepath.Join(t.TempDir(), "openspec", "changes")
 
-	_, err := ExecuteCommand(rootCmd, "init", "--storage", "ignored")
+	_, err := ExecuteCommand(rootCmd, "init", "--home", home, "--changes-dir", external)
 	require.NoError(t, err)
 
-	// Should create .sdlaic/changes/
-	changesDir := filepath.Join(dir, ".sdlaic", "changes")
-	_, err = os.Stat(changesDir)
-	assert.NoError(t, err)
+	entry := globalEntry(t, home, dir)
+	assert.Equal(t, external, entry.ChangesDir)
+	assert.DirExists(t, external)
 
-	// Should add to .gitignore
-	gitignoreData, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
-	assert.Contains(t, string(gitignoreData), ".sdlaic/changes/")
-
-	// Config should reflect ignored storage
-	cfg, err := config.LoadLocal(filepath.Join(dir, ".sdlaicrc"))
-	require.NoError(t, err)
-	assert.Equal(t, domain.StorageModeIgnored, cfg.Storage)
+	assert.Empty(t, entries, "an external changes dir must leave the project directory completely empty")
 }
 
-func TestInit_StorageGlobal(t *testing.T) {
-	resetInitFlags()
-	dir := t.TempDir()
-	homeDir := t.TempDir()
-	oldWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(oldWd)
+func TestInit_NormalizesRelativeChangesDir(t *testing.T) {
+	home, dir := initFixture(t)
 
-	_, err := ExecuteCommand(rootCmd, "init", "--storage", "global", "--home", homeDir)
+	_, err := ExecuteCommand(rootCmd, "init", "--home", home, "--changes-dir", "spec/changes")
 	require.NoError(t, err)
 
-	// .sdlaicrc should exist in project root
-	_, err = os.Stat(filepath.Join(dir, ".sdlaicrc"))
-	assert.NoError(t, err)
+	entry := globalEntry(t, home, dir)
+	assert.True(t, filepath.IsAbs(entry.ChangesDir), "stored paths are always absolute")
+	assert.Equal(t, filepath.Join(dir, "spec", "changes"), entry.ChangesDir)
+}
 
-	// Config should reflect global storage
-	cfg, err := config.LoadLocal(filepath.Join(dir, ".sdlaicrc"))
+func TestInit_IsIdempotent(t *testing.T) {
+	home, dir := initFixture(t)
+
+	_, err := ExecuteCommand(rootCmd, "init", "--home", home)
 	require.NoError(t, err)
-	assert.Equal(t, domain.StorageModeGlobal, cfg.Storage)
+	_, err = ExecuteCommand(rootCmd, "init", "--home", home)
+	require.NoError(t, err, "re-running init on a registered project must succeed")
+
+	cfg, err := config.LoadGlobal(filepath.Join(home, ".sdlaic", "config.json"))
+	require.NoError(t, err)
+	assert.Len(t, cfg.Projects, 1, "re-init updates the entry rather than adding another")
+	_ = dir
+}
+
+func TestInit_RejectsChangesDirClaimedByAnotherProject(t *testing.T) {
+	home, _ := initFixture(t)
+	shared := filepath.Join(t.TempDir(), "openspec", "changes")
+
+	_, err := ExecuteCommand(rootCmd, "init", "--home", home, "--changes-dir", shared)
+	require.NoError(t, err)
+
+	other := t.TempDir()
+	require.NoError(t, os.Chdir(other))
+	output, err := ExecuteCommand(rootCmd, "init", "--home", home, "--changes-dir", shared)
+
+	require.Error(t, err, "one changes directory belongs to exactly one project")
+	assert.Contains(t, err.Error()+output, "already", "the error should say the directory is taken")
 }
 
 func TestInit_WorkflowFlag(t *testing.T) {
-	resetInitFlags()
-	dir := t.TempDir()
-	oldWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(oldWd)
+	home, dir := initFixture(t)
 
-	_, err := ExecuteCommand(rootCmd, "init", "--workflow", "light")
+	_, err := ExecuteCommand(rootCmd, "init", "--home", home, "--workflow", "light")
 	require.NoError(t, err)
 
-	cfg, err := config.LoadLocal(filepath.Join(dir, ".sdlaicrc"))
-	require.NoError(t, err)
-	assert.Equal(t, domain.WorkflowLight, cfg.Workflow)
-}
-
-func TestInit_Defaults(t *testing.T) {
-	resetInitFlags()
-	dir := t.TempDir()
-	oldWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(oldWd)
-
-	_, err := ExecuteCommand(rootCmd, "init")
-	require.NoError(t, err)
-
-	cfg, err := config.LoadLocal(filepath.Join(dir, ".sdlaicrc"))
-	require.NoError(t, err)
-	assert.Equal(t, domain.StorageModeLocal, cfg.Storage)
-	assert.Equal(t, domain.WorkflowStrict, cfg.Workflow)
-	assert.Equal(t, 1, cfg.Version)
-	assert.NotEmpty(t, cfg.ProjectHash)
-}
-
-func TestInit_InvalidStorage(t *testing.T) {
-	resetInitFlags()
-	dir := t.TempDir()
-	oldWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(oldWd)
-
-	_, err := ExecuteCommand(rootCmd, "init", "--storage", "cloud")
-	assert.Error(t, err)
+	assert.Equal(t, domain.WorkflowLight, globalEntry(t, home, dir).Workflow)
 }
 
 func TestInit_InvalidWorkflow(t *testing.T) {
-	resetInitFlags()
-	dir := t.TempDir()
-	oldWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(oldWd)
+	home, _ := initFixture(t)
 
-	_, err := ExecuteCommand(rootCmd, "init", "--workflow", "ultra")
+	_, err := ExecuteCommand(rootCmd, "init", "--home", home, "--workflow", "ultra")
 	assert.Error(t, err)
+}
+
+func TestInit_RejectsEmptyChangesDir(t *testing.T) {
+	home, _ := initFixture(t)
+
+	_, err := ExecuteCommand(rootCmd, "init", "--home", home, "--changes-dir", "  ")
+	assert.Error(t, err)
+}
+
+// TEMPORARY: until T17, the default in-project layout still writes a .sdlaicrc
+// so commands that have not been migrated keep resolving. An external changes
+// dir deliberately writes nothing into the project.
+func TestInit_DefaultLayoutStillWritesLegacyLocalConfig(t *testing.T) {
+	home, dir := initFixture(t)
+
+	_, err := ExecuteCommand(rootCmd, "init", "--home", home)
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(dir, ".sdlaicrc"))
 }

@@ -95,21 +95,6 @@ func TestNewChange_UpdatesActiveOnSecondCreate(t *testing.T) {
 	assert.Equal(t, "SECOND", cfg.ActiveChange)
 }
 
-func TestNewChange_IgnoredStorage(t *testing.T) {
-	dir := t.TempDir()
-	oldWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	t.Cleanup(func() { os.Chdir(oldWd) })
-
-	resetInitFlags()
-	_, err := ExecuteCommand(rootCmd, "init", "--storage", "ignored")
-	require.NoError(t, err)
-
-	_, err = ExecuteCommand(rootCmd, "new", "change", "CHANGE-1")
-	require.NoError(t, err)
-
-	// Change should be in .sdlaic/changes/
-	changeDir := filepath.Join(dir, ".sdlaic", "changes", "CHANGE-1")
-	_, err = os.Stat(changeDir)
-	assert.NoError(t, err)
-}
+// TestNewChange_IgnoredStorage was removed with the `ignored` storage mode. Its
+// remaining assertion — a change lands in the project's changes directory — is
+// covered by TestNewChange_CreatesChangeDir.

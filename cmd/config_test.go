@@ -12,13 +12,20 @@ import (
 
 func initWorkspaceForTest(t *testing.T) string {
 	t.Helper()
-	dir := t.TempDir()
+	home := t.TempDir()
+
+	// os.Getwd reports the symlink-free path, so resolve up front or path
+	// comparisons against the returned dir will not match.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
 	oldWd, _ := os.Getwd()
 	require.NoError(t, os.Chdir(dir))
 	t.Cleanup(func() { os.Chdir(oldWd) })
 
 	resetInitFlags()
-	_, err := ExecuteCommand(rootCmd, "init", "--storage", "local")
+	t.Cleanup(resetInitFlags)
+	_, err = ExecuteCommand(rootCmd, "init", "--home", home)
 	require.NoError(t, err)
 	return dir
 }

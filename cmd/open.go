@@ -188,6 +188,31 @@ func runOpenClaude(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// registerProject adds the project to the global config file.
+// TEMPORARY: moved here from init.go, which now registers via
+// config.UpdateProject. Removed when open is migrated in T16.
+func registerProject(globalCfgPath string, hash string, path string, storageMode domain.StorageMode) {
+	cfg, err := loadOrCreateGlobalConfig(globalCfgPath)
+	if err != nil {
+		return // Non-fatal: global config is optional
+	}
+
+	cfg.Projects[hash] = domain.ProjectEntry{
+		Path:    path,
+		Storage: storageMode,
+	}
+
+	_ = saveGlobalConfig(globalCfgPath, cfg)
+}
+
+func loadOrCreateGlobalConfig(path string) (domain.GlobalConfig, error) {
+	cfg, err := loadGlobalConfig(path)
+	if err != nil {
+		return domain.NewGlobalConfig(), nil
+	}
+	return cfg, nil
+}
+
 func runShellCmd(args ...string) error {
 	c := exec.Command(args[0], args[1:]...)
 	c.Stdout = os.Stdout

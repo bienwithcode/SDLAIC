@@ -133,3 +133,19 @@ func TestLookup_MissingDirectoryReturnsError(t *testing.T) {
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, domain.ErrWorkspaceNotFound), "an unreadable cwd is a real error, not a missing project")
 }
+
+func TestProjectHash_IsStableAcrossSymlinkedPaths(t *testing.T) {
+	// A project reached through a symlink must hash to the same value as the
+	// resolved path, or Lookup (which resolves) would never find the entry that
+	// ProjectHash keyed.
+	raw := t.TempDir()
+	resolved, err := filepath.EvalSymlinks(raw)
+	require.NoError(t, err)
+
+	fromRaw, err := ProjectHash(raw)
+	require.NoError(t, err)
+	fromResolved, err := ProjectHash(resolved)
+	require.NoError(t, err)
+
+	assert.Equal(t, fromResolved, fromRaw)
+}
