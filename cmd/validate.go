@@ -12,8 +12,6 @@ import (
 	"github.com/bienwithcode/SDLAIC/internal/domain"
 	"github.com/bienwithcode/SDLAIC/internal/gatestate"
 	"github.com/bienwithcode/SDLAIC/internal/state"
-	"github.com/bienwithcode/SDLAIC/internal/storage"
-	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
 
 var validateStrict bool
@@ -43,22 +41,9 @@ func resetValidateFlags() {
 
 func runValidate(cmd *cobra.Command, args []string) error {
 	// Find workspace
-	cwd, err := os.Getwd()
+	project, err := resolveProject()
 	if err != nil {
-		return fmt.Errorf("getting current directory: %w", err)
-	}
-
-	root, err := workspace.FindWorkspace(cwd)
-	if err != nil {
-		return fmt.Errorf("no SDLAIC workspace found (run 'sdlaic init' first): %w", err)
-	}
-
-	workspaceRoot = root
-
-	// Load config
-	cfg, err := loadLocalConfig()
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+		return err
 	}
 
 	// Resolve change name from positional arg, then flag, then active change
@@ -74,8 +59,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Resolve change path
-	homeDir, _ := os.UserHomeDir()
-	changePath, err := storage.ResolvePath(cfg.Storage, root, homeDir, changeName)
+	changePath, err := project.changePath(changeName)
 	if err != nil {
 		return fmt.Errorf("resolving change path: %w", err)
 	}
@@ -134,7 +118,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	// Strict mode: check artifacts up to current phase are populated
 	if validateStrict {
 		// Load gate state to respect explicit skips
-		store := gatestate.NewWithHome(homeDir, cfg.ProjectHash, changeName)
+		store := gatestate.NewWithHome(resolveHome(), project.Hash, changeName)
 		gf, _ := store.Load()
 
 		// Read all artifacts and check phases

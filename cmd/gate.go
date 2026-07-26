@@ -9,8 +9,6 @@ import (
 
 	"github.com/bienwithcode/SDLAIC/internal/domain"
 	"github.com/bienwithcode/SDLAIC/internal/gatestate"
-	"github.com/bienwithcode/SDLAIC/internal/storage"
-	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
 
 var (
@@ -68,50 +66,40 @@ func init() {
 
 // gateStore resolves the workspace, config, and active change, and returns a
 // gate-state store for it along with the loaded config and change name.
-func gateStore() (*gatestate.Store, domain.LocalConfig, string, error) {
-	cwd, err := os.Getwd()
+func gateStore() (*gatestate.Store, projectContext, string, error) {
+	project, err := resolveProject()
 	if err != nil {
-		return nil, domain.LocalConfig{}, "", fmt.Errorf("getting current directory: %w", err)
-	}
-	root, err := workspace.FindWorkspace(cwd)
-	if err != nil {
-		return nil, domain.LocalConfig{}, "", fmt.Errorf("no SDLAIC workspace found (run 'sdlaic init' first): %w", err)
-	}
-	workspaceRoot = root
-
-	cfg, err := loadLocalConfig()
-	if err != nil {
-		return nil, domain.LocalConfig{}, "", fmt.Errorf("loading config: %w", err)
-	}
-	changeName, err := resolveChangeName(changeFlag)
-	if err != nil {
-		return nil, domain.LocalConfig{}, "", err
+		return nil, projectContext{}, "", err
 	}
 
-	homeDir, _ := os.UserHomeDir()
-	store := gatestate.NewWithHome(homeDir, cfg.ProjectHash, changeName)
-	return store, cfg, changeName, nil
+	changeName, err := project.resolveChange(changeFlag)
+	if err != nil {
+		return nil, projectContext{}, "", err
+	}
+
+	store := gatestate.NewWithHome(resolveHome(), project.Hash, changeName)
+	return store, project, changeName, nil
 }
 
 func runGateStatus(cmd *cobra.Command, args []string) error {
-	store, cfg, _, err := gateStore()
+	store, project, _, err := gateStore()
 	if err != nil {
 		return err
 	}
-	gf, _, err := store.LoadOrDefault(cfg.Workflow)
+	gf, _, err := store.LoadOrDefault(project.Workflow)
 	if err != nil {
 		return fmt.Errorf("loading gate state: %w", err)
 	}
 
 	for k, g := range gf.Gates {
-		g.IsPassing = g.IsPassingFor(cfg.Workflow)
+		g.IsPassing = g.IsPassingFor(project.Workflow)
 		gf.Gates[k] = g
 	}
 
 	if gateJSON {
 		return printJSON(cmd, gf)
 	}
-	return printGateHuman(cmd, gf, cfg.Workflow)
+	return printGateHuman(cmd, gf, project.Workflow)
 }
 
 func runGateSet(cmd *cobra.Command, args []string) error {
@@ -139,14 +127,13 @@ func runGateSet(cmd *cobra.Command, args []string) error {
 		verdict = &v
 	}
 
-	store, cfg, changeName, err := gateStore()
+	store, project, changeName, err := gateStore()
 	if err != nil {
 		return err
 	}
 
 	// Validate that the artifact change directory exists before allowing state init
-	homeDir, _ := os.UserHomeDir()
-	changePath, err := storage.ResolvePath(cfg.Storage, workspaceRoot, homeDir, changeName)
+	changePath, err := project.changePath(changeName)
 	if err != nil {
 		return fmt.Errorf("resolving change path: %w", err)
 	}
@@ -156,7 +143,7 @@ func runGateSet(cmd *cobra.Command, args []string) error {
 
 	// Lazily initialize meta.json on first write (spec Open Q2).
 	if _, err := store.Load(); errors.Is(err, domain.ErrGateStateNotFound) {
-		if _, err := store.Init(cfg.Workflow); err != nil {
+		if _, err := store.Init(project.Workflow); err != nil {
 			return fmt.Errorf("initializing gate state: %w", err)
 		}
 	}
@@ -172,11 +159,11 @@ func runGateSet(cmd *cobra.Command, args []string) error {
 }
 
 func runGateReentry(cmd *cobra.Command, args []string) error {
-	store, cfg, _, err := gateStore()
+	store, project, _, err := gateStore()
 	if err != nil {
 		return err
 	}
-	gf, err := store.ReEnter(gateReentryFrom, gateReentryWhy, cfg.Workflow)
+	gf, err := store.ReEnter(gateReentryFrom, gateReentryWhy, project.Workflow)
 	if errors.Is(err, domain.ErrGateStateNotFound) {
 		return fmt.Errorf("no gate state yet for this change; run `sdlaic gate set` first: %w", err)
 	}
