@@ -6,16 +6,16 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/bienwithcode/SDLAIC/internal/config"
 	"github.com/bienwithcode/SDLAIC/internal/domain"
 	"github.com/bienwithcode/SDLAIC/internal/storage"
-	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
 
 // configCmd represents the `sdlaic config` command.
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage SDLAIC configuration",
-	Long:  `View and modify workspace configuration settings.`,
+	Long:  `View and modify this project's entry in ~/.sdlaic/config.json.`,
 }
 
 // configSetCmd represents `sdlaic config set`.
@@ -25,8 +25,8 @@ var configSetCmd = &cobra.Command{
 	Long: `Set a configuration key to a new value.
 
 Supported keys:
-  storage  — local, ignored, global
-  workflow — strict, light, free`,
+  changes-dir — directory holding change artifacts (stored as an absolute path)
+  workflow    — strict, light, free`,
 	Args: cobra.ExactArgs(2),
 	RunE: runConfigSet,
 }
@@ -35,7 +35,7 @@ Supported keys:
 var configListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List current configuration",
-	Long:  `Display all configuration key-value pairs for the current workspace.`,
+	Long:  `Display the configuration for the current project.`,
 	RunE:  runConfigList,
 }
 
@@ -46,55 +46,51 @@ func init() {
 }
 
 func runConfigSet(cmd *cobra.Command, args []string) error {
-	key := args[0]
-	value := args[1]
+	key, value := args[0], args[1]
 
-	// Find workspace
-	cwd, err := os.Getwd()
+	project, err := resolveProject()
 	if err != nil {
-		return fmt.Errorf("getting current directory: %w", err)
-	}
-
-	root, err := workspace.FindWorkspace(cwd)
-	if err != nil {
-		return fmt.Errorf("no SDLAIC workspace found (run 'sdlaic init' first): %w", err)
-	}
-
-	workspaceRoot = root
-	cfg, err := loadLocalConfig()
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+		return err
 	}
 
 	switch key {
-	case "storage":
-		mode, err := domain.ParseStorageMode(value)
+	case "changes-dir":
+		cwd, err := os.Getwd()
 		if err != nil {
-			return fmt.Errorf("invalid storage value %q: %w", value, err)
+			return fmt.Errorf("getting current directory: %w", err)
 		}
-		oldMode := cfg.Storage
-		cfg.Storage = mode
-
-		// Handle gitignore side effects
-		if oldMode != domain.StorageModeIgnored && mode == domain.StorageModeIgnored {
-			if err := storage.AppendToGitignore(root, ".sdlaic/changes/"); err != nil {
-				return fmt.Errorf("updating .gitignore: %w", err)
-			}
+		changesDir, err := storage.NormalizeChangesDir(value, cwd, resolveHome())
+		if err != nil {
+			return fmt.Errorf("invalid changes-dir value: %w", err)
 		}
+		if err := ensureChangesDirUnclaimed(globalConfigPath(), project.Hash, changesDir); err != nil {
+			return err
+		}
+		if err := os.MkdirAll(changesDir, 0755); err != nil {
+			return fmt.Errorf("creating changes directory: %w", err)
+		}
+		if err := config.UpdateProject(globalConfigPath(), project.Hash, func(e *domain.ProjectEntry) {
+			e.Path = project.Root
+			e.ChangesDir = changesDir
+		}); err != nil {
+			return fmt.Errorf("saving config: %w", err)
+		}
+		value = changesDir
 
 	case "workflow":
 		level, err := domain.ParseWorkflowLevel(value)
 		if err != nil {
 			return fmt.Errorf("invalid workflow value %q: %w", value, err)
 		}
-		cfg.Workflow = level
+		if err := config.UpdateProject(globalConfigPath(), project.Hash, func(e *domain.ProjectEntry) {
+			e.Path = project.Root
+			e.Workflow = level
+		}); err != nil {
+			return fmt.Errorf("saving config: %w", err)
+		}
 
 	default:
-		return fmt.Errorf("unknown configuration key %q; valid keys: storage, workflow", key)
-	}
-
-	if err := saveLocalConfig(cfg); err != nil {
-		return fmt.Errorf("saving config: %w", err)
+		return fmt.Errorf("unknown configuration key %q; valid keys: changes-dir, workflow", key)
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "Set %s = %s\n", key, value)
@@ -102,28 +98,28 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 }
 
 func runConfigList(cmd *cobra.Command, args []string) error {
-	cwd, err := os.Getwd()
+	project, err := resolveProject()
 	if err != nil {
-		return fmt.Errorf("getting current directory: %w", err)
+		return err
 	}
 
-	root, err := workspace.FindWorkspace(cwd)
-	if err != nil {
-		return fmt.Errorf("no SDLAIC workspace found (run 'sdlaic init' first): %w", err)
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "path          = %s", project.Root)
+	if _, err := os.Stat(project.Root); err != nil {
+		fmt.Fprint(out, "  (stale: directory no longer exists)")
 	}
+	fmt.Fprintln(out)
 
-	workspaceRoot = root
-	cfg, err := loadLocalConfig()
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+	changesDir := project.ChangesDir
+	if changesDir == "" {
+		changesDir = "(not set — run 'sdlaic init --changes-dir <path>')"
 	}
-
-	fmt.Fprintf(cmd.OutOrStdout(), "storage  = %s\n", cfg.Storage)
-	fmt.Fprintf(cmd.OutOrStdout(), "workflow = %s\n", cfg.Workflow)
-	if cfg.ActiveChange != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "active_change = %s\n", cfg.ActiveChange)
+	fmt.Fprintf(out, "changes_dir   = %s\n", changesDir)
+	fmt.Fprintf(out, "workflow      = %s\n", project.Workflow)
+	if project.ActiveChange != "" {
+		fmt.Fprintf(out, "active_change = %s\n", project.ActiveChange)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "project_hash  = %s\n", cfg.ProjectHash)
+	fmt.Fprintf(out, "project_hash  = %s\n", project.Hash)
 
 	return nil
 }

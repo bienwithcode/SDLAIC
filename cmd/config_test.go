@@ -8,7 +8,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bienwithcode/SDLAIC/internal/config"
+	"github.com/bienwithcode/SDLAIC/internal/domain"
 )
+
+// entryFor reads the current project entry from the temp global config.
+func entryFor(t *testing.T, dir string) domain.ProjectEntry {
+	t.Helper()
+	cfg, err := config.LoadGlobal(globalConfigPath())
+	require.NoError(t, err)
+	hash, err := workspaceHash(dir)
+	require.NoError(t, err)
+	return cfg.Projects[hash]
+}
 
 func initWorkspaceForTest(t *testing.T) string {
 	t.Helper()
@@ -30,21 +43,52 @@ func initWorkspaceForTest(t *testing.T) string {
 	return dir
 }
 
-func TestConfigSet_Storage(t *testing.T) {
+func TestConfigSet_ChangesDir(t *testing.T) {
+	dir := initWorkspaceForTest(t)
+	external := filepath.Join(t.TempDir(), "openspec", "changes")
+
+	_, err := ExecuteCommand(rootCmd, "config", "set", "changes-dir", external)
+	require.NoError(t, err)
+
+	assert.Equal(t, external, entryFor(t, dir).ChangesDir)
+	assert.DirExists(t, external)
+}
+
+func TestConfigSet_ChangesDirIsStoredAbsolute(t *testing.T) {
 	dir := initWorkspaceForTest(t)
 
+	_, err := ExecuteCommand(rootCmd, "config", "set", "changes-dir", "spec/changes")
+	require.NoError(t, err)
+
+	assert.Equal(t, filepath.Join(dir, "spec", "changes"), entryFor(t, dir).ChangesDir)
+}
+
+func TestConfigSet_RejectsChangesDirClaimedByAnotherProject(t *testing.T) {
+	first := initWorkspaceForTest(t)
+	shared := filepath.Join(t.TempDir(), "shared", "changes")
+	_, err := ExecuteCommand(rootCmd, "config", "set", "changes-dir", shared)
+	require.NoError(t, err)
+
+	// A second project in the same home cannot claim the same directory.
+	second, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(second))
+	_, err = ExecuteCommand(rootCmd, "init", "--home", homeFlag)
+	require.NoError(t, err)
+
+	_, err = ExecuteCommand(rootCmd, "config", "set", "changes-dir", shared)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), first, "the error should name the project already using it")
+}
+
+func TestConfigSet_StorageKeyIsGone(t *testing.T) {
+	_ = initWorkspaceForTest(t)
+
 	_, err := ExecuteCommand(rootCmd, "config", "set", "storage", "ignored")
-	require.NoError(t, err)
 
-	// Verify config updated
-	data, err := os.ReadFile(filepath.Join(dir, ".sdlaicrc"))
-	require.NoError(t, err)
-	assert.Contains(t, string(data), "ignored")
-
-	// Verify .gitignore updated
-	gitignoreData, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
-	require.NoError(t, err)
-	assert.Contains(t, string(gitignoreData), ".sdlaic/changes/")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "changes-dir", "the error should list the keys that do exist")
 }
 
 func TestConfigSet_Workflow(t *testing.T) {
@@ -53,22 +97,13 @@ func TestConfigSet_Workflow(t *testing.T) {
 	_, err := ExecuteCommand(rootCmd, "config", "set", "workflow", "free")
 	require.NoError(t, err)
 
-	data, err := os.ReadFile(filepath.Join(dir, ".sdlaicrc"))
-	require.NoError(t, err)
-	assert.Contains(t, string(data), "free")
+	assert.Equal(t, domain.WorkflowFree, entryFor(t, dir).Workflow)
 }
 
 func TestConfigSet_InvalidKey(t *testing.T) {
 	_ = initWorkspaceForTest(t)
 
 	_, err := ExecuteCommand(rootCmd, "config", "set", "color", "blue")
-	assert.Error(t, err)
-}
-
-func TestConfigSet_InvalidStorageValue(t *testing.T) {
-	_ = initWorkspaceForTest(t)
-
-	_, err := ExecuteCommand(rootCmd, "config", "set", "storage", "cloud")
 	assert.Error(t, err)
 }
 
@@ -82,7 +117,7 @@ func TestConfigSet_InvalidWorkflowValue(t *testing.T) {
 func TestConfigSet_RequiresTwoArgs(t *testing.T) {
 	_ = initWorkspaceForTest(t)
 
-	_, err := ExecuteCommand(rootCmd, "config", "set", "storage")
+	_, err := ExecuteCommand(rootCmd, "config", "set", "workflow")
 	assert.Error(t, err)
 }
 
@@ -91,10 +126,11 @@ func TestConfigList(t *testing.T) {
 
 	output, err := ExecuteCommand(rootCmd, "config", "list")
 	require.NoError(t, err)
-	assert.Contains(t, output, "storage")
-	assert.Contains(t, output, "local")
+	assert.Contains(t, output, "changes_dir")
+	assert.Contains(t, output, ".sdlaic/changes")
 	assert.Contains(t, output, "workflow")
 	assert.Contains(t, output, "strict")
+	assert.NotContains(t, output, "storage")
 }
 
 func TestConfigList_AfterSet(t *testing.T) {
