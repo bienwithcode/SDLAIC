@@ -2,14 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/bienwithcode/SDLAIC/internal/domain"
 	"github.com/bienwithcode/SDLAIC/internal/state"
-	"github.com/bienwithcode/SDLAIC/internal/storage"
-	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
 
 var statusJSON bool
@@ -30,34 +27,22 @@ func init() {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	// Find workspace
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("getting current directory: %w", err)
-	}
-
-	root, err := workspace.FindWorkspace(cwd)
-	if err != nil {
-		return fmt.Errorf("no SDLAIC workspace found (run 'sdlaic init' first): %w", err)
-	}
-
-	workspaceRoot = root
-
-	// Load config
-	cfg, err := loadLocalConfig()
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
-	}
-
-	// Resolve change name
-	changeName, err := resolveChangeName(changeFlag)
+	project, err := resolveProject()
 	if err != nil {
 		return err
 	}
 
-	// Resolve change path
-	homeDir, _ := os.UserHomeDir()
-	changePath, err := storage.ResolvePath(cfg.Storage, root, homeDir, changeName)
+	changeName, err := project.resolveChange(changeFlag)
+	if err != nil {
+		return err
+	}
+
+	changesDir, err := project.changesDir()
+	if err != nil {
+		return err
+	}
+
+	changePath, err := project.changePath(changeName)
 	if err != nil {
 		return fmt.Errorf("resolving change path: %w", err)
 	}
@@ -76,8 +61,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Build status response
 	status := domain.ChangeStatus{
 		ActiveChange: changeName,
-		StorageMode:  cfg.Storage,
-		Workflow:     cfg.Workflow,
+		ChangesDir:   changesDir,
+		Workflow:     project.Workflow,
 		CurrentPhase: phase,
 		ChangePath:   changePath,
 		Artifacts:    artifacts,
@@ -93,7 +78,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 func printStatusHuman(cmd *cobra.Command, status domain.ChangeStatus) error {
 	fmt.Fprintf(cmd.OutOrStdout(), "Change:     %s\n", status.ActiveChange)
 	fmt.Fprintf(cmd.OutOrStdout(), "Phase:      %s\n", status.CurrentPhase)
-	fmt.Fprintf(cmd.OutOrStdout(), "Storage:    %s\n", status.StorageMode)
+	fmt.Fprintf(cmd.OutOrStdout(), "Changes:    %s\n", status.ChangesDir)
 	fmt.Fprintf(cmd.OutOrStdout(), "Workflow:   %s\n", status.Workflow)
 	fmt.Fprintf(cmd.OutOrStdout(), "Path:       %s\n", status.ChangePath)
 	fmt.Fprintf(cmd.OutOrStdout(), "\nArtifacts:\n")

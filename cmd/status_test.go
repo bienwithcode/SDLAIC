@@ -33,7 +33,8 @@ func TestStatus_JSONOutput(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(output), &status))
 
 	assert.Equal(t, "STATUS-TEST", status.ActiveChange)
-	assert.Equal(t, domain.StorageModeLocal, status.StorageMode)
+	assert.Equal(t, filepath.Join(dir, ".sdlaic", "changes"), status.ChangesDir)
+	assert.True(t, filepath.IsAbs(status.ChangesDir), "changes_dir is always absolute")
 	assert.Equal(t, domain.WorkflowStrict, status.Workflow)
 	assert.Equal(t, domain.PhaseContext, status.CurrentPhase)
 	assert.NotEmpty(t, status.ChangePath)
@@ -87,15 +88,7 @@ func TestStatus_NoActiveChange(t *testing.T) {
 	require.NoError(t, err)
 
 	// Manually clear active change
-	cfgPath := filepath.Join(dir, ".sdlaicrc")
-	cfgData, err := os.ReadFile(cfgPath)
-	require.NoError(t, err)
-	var cfg domain.LocalConfig
-	require.NoError(t, json.Unmarshal(cfgData, &cfg))
-	cfg.ActiveChange = ""
-	cfgBytes, err := json.MarshalIndent(cfg, "", "  ")
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(cfgPath, cfgBytes, 0644))
+	setActiveChangeOf(t, dir, "")
 
 	// Status without --change and no active should error
 	resetStatusFlags()
@@ -176,4 +169,21 @@ func TestStatus_JSONArtifactFields(t *testing.T) {
 
 	// context should be populated (from template)
 	assert.True(t, status.Artifacts["context"].Exists)
+}
+
+func TestStatus_JSONHasNoStorageModeKey(t *testing.T) {
+	resetStatusFlags()
+	initWorkspaceForTest(t)
+
+	_, err := ExecuteCommand(rootCmd, "new", "change", "SHAPE-TEST")
+	require.NoError(t, err)
+
+	resetStatusFlags()
+	output, err := ExecuteCommand(rootCmd, "status", "--json")
+	require.NoError(t, err)
+
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal([]byte(output), &raw))
+	assert.NotContains(t, raw, "storage_mode", "storage_mode was replaced by changes_dir")
+	assert.Contains(t, raw, "changes_dir")
 }

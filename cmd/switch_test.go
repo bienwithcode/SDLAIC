@@ -2,13 +2,10 @@ package cmd
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/bienwithcode/SDLAIC/internal/config"
 )
 
 func TestSwitch_SetsActive(t *testing.T) {
@@ -24,9 +21,7 @@ func TestSwitch_SetsActive(t *testing.T) {
 	_, err = ExecuteCommand(rootCmd, "switch", "CHANGE-A")
 	require.NoError(t, err)
 
-	cfg, err := config.LoadLocal(filepath.Join(dir, ".sdlaicrc"))
-	require.NoError(t, err)
-	assert.Equal(t, "CHANGE-A", cfg.ActiveChange)
+	assert.Equal(t, "CHANGE-A", activeChangeOf(t, dir))
 }
 
 func TestSwitch_InvalidName(t *testing.T) {

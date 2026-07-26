@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/bienwithcode/SDLAIC/internal/config"
 )
 
 func TestNewChange_CreatesChangeDir(t *testing.T) {
@@ -46,10 +44,7 @@ func TestNewChange_SetsActive(t *testing.T) {
 	_, err := ExecuteCommand(rootCmd, "new", "change", "FEATURE-300")
 	require.NoError(t, err)
 
-	// Active change should be set in .sdlaicrc
-	cfg, err := config.LoadLocal(filepath.Join(dir, ".sdlaicrc"))
-	require.NoError(t, err)
-	assert.Equal(t, "FEATURE-300", cfg.ActiveChange)
+	assert.Equal(t, "FEATURE-300", activeChangeOf(t, dir))
 }
 
 func TestNewChange_RejectsDuplicate(t *testing.T) {
@@ -89,10 +84,7 @@ func TestNewChange_UpdatesActiveOnSecondCreate(t *testing.T) {
 	_, err = ExecuteCommand(rootCmd, "new", "change", "SECOND")
 	require.NoError(t, err)
 
-	// Active change should now be SECOND
-	cfg, err := config.LoadLocal(filepath.Join(dir, ".sdlaicrc"))
-	require.NoError(t, err)
-	assert.Equal(t, "SECOND", cfg.ActiveChange)
+	assert.Equal(t, "SECOND", activeChangeOf(t, dir))
 }
 
 // TestNewChange_IgnoredStorage was removed with the `ignored` storage mode. Its

@@ -85,18 +85,14 @@ func resolveChangeName(flag string) (string, error) {
 		return flag, nil
 	}
 
-	if workspaceRoot != "" {
-		cfgPath := workspaceRoot + "/.sdlaicrc"
-		cfg, err := config.LoadLocal(cfgPath)
-		if err != nil {
-			return "", fmt.Errorf("loading config: %w", err)
-		}
-		if cfg.ActiveChange != "" {
-			return cfg.ActiveChange, nil
-		}
+	// The active change lives in the global config now, so commands that have
+	// not been migrated yet still have to ask for it through resolveProject —
+	// otherwise a change set by `new` would be invisible to `gate` or `validate`.
+	project, err := resolveProject()
+	if err != nil {
+		return "", domain.ErrNoActiveChange
 	}
-
-	return "", domain.ErrNoActiveChange
+	return project.resolveChange("")
 }
 
 // discoverWorkspace sets workspaceRoot by walking up from cwd.

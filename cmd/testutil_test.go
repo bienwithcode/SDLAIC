@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -60,6 +59,26 @@ func TempChange(t *testing.T, workspaceDir string, name string, artifacts map[st
 	return changeDir
 }
 
+// activeChangeOf reads the active change from the global config for dir.
+func activeChangeOf(t *testing.T, dir string) string {
+	t.Helper()
+	cfg, err := config.LoadGlobal(globalConfigPath())
+	require.NoError(t, err)
+	hash, err := workspaceHash(dir)
+	require.NoError(t, err)
+	return cfg.Projects[hash].ActiveChange
+}
+
+// setActiveChangeOf writes the active change into the global config for dir.
+func setActiveChangeOf(t *testing.T, dir string, name string) {
+	t.Helper()
+	hash, err := workspaceHash(dir)
+	require.NoError(t, err)
+	require.NoError(t, config.UpdateProject(globalConfigPath(), hash, func(e *domain.ProjectEntry) {
+		e.ActiveChange = name
+	}))
+}
+
 // --- Tests for root command ---
 
 func TestRootCmd_Help(t *testing.T) {
@@ -97,24 +116,11 @@ func TestResolveChangeName_EmptyFlag_NoWorkspace(t *testing.T) {
 
 func TestResolveChangeName_EmptyFlag_WithActiveChange(t *testing.T) {
 	dir := TempWorkspace(t)
-
-	// Set active change in config
-	cfgPath := filepath.Join(dir, ".sdlaicrc")
-	cfgData, err := os.ReadFile(cfgPath)
-	require.NoError(t, err)
-	var cfg domain.LocalConfig
-	require.NoError(t, json.Unmarshal(cfgData, &cfg))
-	cfg.ActiveChange = "ACTIVE-CHANGE"
-	cfgBytes, err := json.MarshalIndent(cfg, "", "  ")
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(cfgPath, cfgBytes, 0644))
-
-	// Override the workspace root for this test
-	oldRoot := workspaceRoot
-	workspaceRoot = dir
-	defer func() { workspaceRoot = oldRoot }()
+	chdirTo(t, dir)
+	setActiveChangeOf(t, dir, "ACTIVE-CHANGE")
 
 	name, err := resolveChangeName("")
+
 	require.NoError(t, err)
 	assert.Equal(t, "ACTIVE-CHANGE", name)
 }

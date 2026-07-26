@@ -8,7 +8,6 @@ import (
 
 	"github.com/bienwithcode/SDLAIC/internal/domain"
 	"github.com/bienwithcode/SDLAIC/internal/storage"
-	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
 
 // switchCmd represents the `sdlaic switch` command.
@@ -27,29 +26,14 @@ func init() {
 
 func runSwitch(cmd *cobra.Command, args []string) error {
 	// Find workspace
-	cwd, err := os.Getwd()
+	project, err := resolveProject()
 	if err != nil {
-		return fmt.Errorf("getting current directory: %w", err)
+		return err
 	}
 
-	root, err := workspace.FindWorkspace(cwd)
+	basePath, err := project.changesDir()
 	if err != nil {
-		return fmt.Errorf("no SDLAIC workspace found (run 'sdlaic init' first): %w", err)
-	}
-
-	workspaceRoot = root
-
-	// Load config
-	cfg, err := loadLocalConfig()
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
-	}
-
-	// Resolve changes base path
-	homeDir, _ := os.UserHomeDir()
-	basePath, err := storage.ChangesBasePath(cfg.Storage, root, homeDir)
-	if err != nil {
-		return fmt.Errorf("resolving changes path: %w", err)
+		return err
 	}
 
 	// If no argument, list available changes
@@ -60,7 +44,7 @@ func runSwitch(cmd *cobra.Command, args []string) error {
 	changeName := args[0]
 
 	// Verify change exists
-	changePath, err := storage.ResolvePath(cfg.Storage, root, homeDir, changeName)
+	changePath, err := project.changePath(changeName)
 	if err != nil {
 		return fmt.Errorf("resolving change path: %w", err)
 	}
@@ -70,9 +54,8 @@ func runSwitch(cmd *cobra.Command, args []string) error {
 	}
 
 	// Set as active
-	cfg.ActiveChange = changeName
-	if err := saveLocalConfig(cfg); err != nil {
-		return fmt.Errorf("saving config: %w", err)
+	if err := project.setActiveChange(changeName); err != nil {
+		return fmt.Errorf("saving active change: %w", err)
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "Switched to change %q\n", changeName)

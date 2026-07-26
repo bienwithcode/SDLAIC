@@ -153,7 +153,7 @@ type ArtifactStatus struct {
 // ChangeStatus is the full status of a change, returned by `sdlaic status --json`.
 type ChangeStatus struct {
 	ActiveChange string                    `json:"active_change"`
-	StorageMode  StorageMode               `json:"storage_mode"`
+	ChangesDir   string                    `json:"changes_dir"`
 	Workflow     WorkflowLevel             `json:"workflow"`
 	CurrentPhase Phase                     `json:"current_phase"`
 	ChangePath   string                    `json:"change_path"`

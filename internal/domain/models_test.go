@@ -460,7 +460,7 @@ func TestGateStateSentinels(t *testing.T) {
 func TestChangeStatusJSON(t *testing.T) {
 	status := ChangeStatus{
 		ActiveChange: "JIRA-456",
-		StorageMode:  StorageModeGlobal,
+		ChangesDir:   "/tmp/test/changes",
 		Workflow:     WorkflowStrict,
 		CurrentPhase: PhaseProposed,
 		ChangePath:   "/tmp/test/changes/JIRA-456",
