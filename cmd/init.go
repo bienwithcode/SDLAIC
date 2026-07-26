@@ -14,7 +14,6 @@ import (
 var (
 	initStorage  string
 	initWorkflow string
-	initHomeDir  string
 )
 
 // initCmd represents the `sdlaic init` command.
@@ -30,7 +29,6 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 	initCmd.Flags().StringVar(&initStorage, "storage", "local", "Storage mode: local, ignored, global")
 	initCmd.Flags().StringVar(&initWorkflow, "workflow", "strict", "Workflow level: strict, light, free")
-	initCmd.Flags().StringVar(&initHomeDir, "home", "", "Override home directory (for testing)")
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
@@ -58,10 +56,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Initialize workspace
-	homeDir := initHomeDir
-	if homeDir == "" {
-		homeDir, _ = os.UserHomeDir()
-	}
+	homeDir := resolveHome()
 
 	cfg, err := workspace.InitWorkspaceWithHome(cwd, homeDir, storageMode, workflowLevel, hash)
 	if err != nil {
@@ -77,8 +72,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Also register in global config
-	globalCfgPath := fmt.Sprintf("%s/.sdlaic/config.json", homeDir)
-	registerProject(globalCfgPath, hash, cwd, storageMode)
+	registerProject(globalConfigPath(), hash, cwd, storageMode)
 
 	fmt.Fprintf(cmd.OutOrStdout(), "Initialized SDLAIC workspace in %s\n", cwd)
 	fmt.Fprintf(cmd.OutOrStdout(), "  Storage:  %s\n", cfg.Storage)
@@ -116,5 +110,5 @@ func loadOrCreateGlobalConfig(path string) (domain.GlobalConfig, error) {
 func resetInitFlags() {
 	initStorage = "local"
 	initWorkflow = "strict"
-	initHomeDir = ""
+	homeFlag = ""
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -44,10 +45,38 @@ func Execute() error {
 
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&changeFlag, "change", "c", "", "Target change name (uses active change if omitted)")
+	rootCmd.PersistentFlags().StringVar(&homeFlag, "home", "", "Override the home directory used for ~/.sdlaic (also SDLAIC_HOME)")
 }
 
 // changeFlag is shared across commands that accept --change/-c.
 var changeFlag string
+
+// homeFlag overrides the home directory for every command that reads or writes
+// ~/.sdlaic. Every command now needs the global config, so this has to be
+// injectable or the test suite writes into the developer's real home.
+var homeFlag string
+
+// resolveHome returns the home directory backing ~/.sdlaic, in precedence order:
+// the --home flag, then SDLAIC_HOME, then the OS home directory.
+func resolveHome() string {
+	if homeFlag != "" {
+		return homeFlag
+	}
+	if env := os.Getenv("SDLAIC_HOME"); env != "" {
+		return env
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		// Matches the long-standing fallback in internal/workspace.
+		return "/tmp"
+	}
+	return home
+}
+
+// globalConfigPath returns the path of the global config for the resolved home.
+func globalConfigPath() string {
+	return filepath.Join(resolveHome(), ".sdlaic", "config.json")
+}
 
 // resolveChangeName returns the change name from the flag or the active change
 // in the workspace config.
