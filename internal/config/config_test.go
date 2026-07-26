@@ -149,6 +149,73 @@ func TestLoadGlobal_ValidJSON(t *testing.T) {
 	assert.Equal(t, "/tmp/project", got.Projects["abc123"].Path)
 }
 
+func TestLoadGlobal_V1FileLoadsWithoutError(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+
+	// A config.json written by the pre-ChangesDir CLI: default_storage at the top
+	// level and storage on each project. Neither exists in the v2 model, and both
+	// must be ignored rather than rejected — a hard failure here would lock out
+	// every existing user until they re-ran init for each project.
+	v1 := `{
+	  "version": 1,
+	  "default_workflow": "strict",
+	  "default_storage": "local",
+	  "projects": {
+	    "abc123": {
+	      "path": "/tmp/project",
+	      "storage": "ignored"
+	    }
+	  }
+	}`
+	require.NoError(t, os.WriteFile(cfgPath, []byte(v1), 0644))
+
+	got, err := LoadGlobal(cfgPath)
+	require.NoError(t, err)
+
+	entry := got.Projects["abc123"]
+	assert.Equal(t, "/tmp/project", entry.Path)
+	assert.Empty(t, entry.ChangesDir, "v1 has no changes_dir — it must load empty so the CLI prompts for one")
+	assert.Empty(t, entry.Workflow, "v1 kept workflow in .sdlaicrc, not in the global entry")
+}
+
+func TestLoadGlobal_PreservesProjectWorkflowAndActiveChange(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+
+	v2 := `{
+	  "version": 2,
+	  "default_workflow": "strict",
+	  "projects": {
+	    "abc123": {
+	      "path": "/tmp/project",
+	      "changes_dir": "/tmp/openspec/changes",
+	      "workflow": "light",
+	      "active_change": "SDL-1"
+	    }
+	  }
+	}`
+	require.NoError(t, os.WriteFile(cfgPath, []byte(v2), 0644))
+
+	got, err := LoadGlobal(cfgPath)
+	require.NoError(t, err)
+
+	entry := got.Projects["abc123"]
+	assert.Equal(t, "/tmp/openspec/changes", entry.ChangesDir)
+	assert.Equal(t, domain.WorkflowLight, entry.Workflow)
+	assert.Equal(t, "SDL-1", entry.ActiveChange)
+}
+
+func TestValidateGlobal_AcceptsV1AndV2(t *testing.T) {
+	for _, version := range []int{1, 2} {
+		cfg := domain.GlobalConfig{
+			Version:         version,
+			DefaultWorkflow: domain.WorkflowStrict,
+		}
+		assert.NoError(t, ValidateGlobal(cfg), "version %d must validate", version)
+	}
+}
+
 func TestLoadGlobal_InvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.json")

@@ -179,10 +179,18 @@ func NewLocalConfig(storage StorageMode, workflow WorkflowLevel, projectHash str
 	}
 }
 
-// ProjectEntry stores info about a known project in the global config.
+// ProjectEntry stores all per-project state in the global config, keyed by the
+// project hash. ChangesDir is an absolute path; empty means the project has not
+// been configured yet and the CLI should prompt for one.
+//
+// Storage is retained only until every command reads ChangesDir; it is removed
+// together with StorageMode.
 type ProjectEntry struct {
-	Path    string      `json:"path"`
-	Storage StorageMode `json:"storage"`
+	Path         string        `json:"path"`
+	ChangesDir   string        `json:"changes_dir"`
+	Workflow     WorkflowLevel `json:"workflow"`
+	ActiveChange string        `json:"active_change,omitempty"`
+	Storage      StorageMode   `json:"storage"`
 }
 
 // GlobalConfig represents the ~/.sdlaic/config.json file.
@@ -194,9 +202,13 @@ type GlobalConfig struct {
 }
 
 // NewGlobalConfig returns a GlobalConfig with defaults applied.
+//
+// Version 2 moved all per-project state into ProjectEntry. Version 1 files are
+// still read: their unknown fields are dropped and the resulting empty
+// ChangesDir routes the project into the CLI's "not configured yet" prompt.
 func NewGlobalConfig() GlobalConfig {
 	return GlobalConfig{
-		Version:         1,
+		Version:         2,
 		DefaultWorkflow: WorkflowStrict,
 		DefaultStorage:  StorageModeLocal,
 		Projects:        make(map[string]ProjectEntry),

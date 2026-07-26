@@ -152,11 +152,45 @@ func TestNewLocalConfig(t *testing.T) {
 
 func TestNewGlobalConfig(t *testing.T) {
 	cfg := NewGlobalConfig()
-	assert.Equal(t, 1, cfg.Version)
+	assert.Equal(t, 2, cfg.Version)
 	assert.Equal(t, WorkflowStrict, cfg.DefaultWorkflow)
 	assert.Equal(t, StorageModeLocal, cfg.DefaultStorage)
 	assert.NotNil(t, cfg.Projects)
 	assert.Empty(t, cfg.Projects)
+}
+
+func TestProjectEntryJSONRoundTrip(t *testing.T) {
+	entry := ProjectEntry{
+		Path:         "/Users/dev/work/billing-api",
+		ChangesDir:   "/Users/dev/work/openspec/changes",
+		Workflow:     WorkflowStrict,
+		ActiveChange: "SDL-142-add-invoice-export",
+	}
+
+	data, err := json.Marshal(entry)
+	require.NoError(t, err)
+
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(data, &raw))
+	assert.Equal(t, "/Users/dev/work/openspec/changes", raw["changes_dir"])
+	assert.Equal(t, "strict", raw["workflow"])
+	assert.Equal(t, "SDL-142-add-invoice-export", raw["active_change"])
+
+	var got ProjectEntry
+	require.NoError(t, json.Unmarshal(data, &got))
+	assert.Equal(t, entry, got)
+}
+
+func TestProjectEntryOmitsEmptyActiveChange(t *testing.T) {
+	data, err := json.Marshal(ProjectEntry{
+		Path:       "/tmp/project",
+		ChangesDir: "/tmp/project/.sdlaic/changes",
+	})
+	require.NoError(t, err)
+
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(data, &raw))
+	assert.NotContains(t, raw, "active_change")
 }
 
 func TestSentinelErrors(t *testing.T) {
