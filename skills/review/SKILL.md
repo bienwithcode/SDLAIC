@@ -1,11 +1,62 @@
 ---
 name: review
-description: Use after all tasks have been applied. Two-pass hybrid review — (1) audits committed code against proposal/specs/design (in their authoring order) for compliance, (2) runs CURe-style code quality assessment with code research to catch DRY violations, module boundary issues, pattern drift, and architectural problems before CURe's PR review.
+description: Parameterized auditor & gatekeeper engine. Runs AFTER an artifact is drafted (proposal | spec | design | tasks | code), loading the matching references/reviews/<phase>-audit.md in a clean subagent and issuing an APPROVE / REQUEST_CHANGES / REJECT verdict. Verdicts are persisted via `sdlaic gate set` — never inside the repo. For `code`, runs the two-pass compliance + quality review.
 ---
 
-# Audit Phase (Review)
+# Auditor & Gatekeeper Engine (Review)
 
 ## Core Principle
+
+Review is an **independent gate**. It runs AFTER a draft skill, in a clean-context
+subagent, loading only the target artifact + its phase-specific audit checklist —
+preventing hallucination from accumulated chat history. It issues one of
+**APPROVE / REQUEST_CHANGES / REJECT** and enforces the **Claim Verification
+Rule**: every finding cites primary evidence (`path:line` or ticket reference).
+
+## Parameters & Gate Recording
+
+Invoked as `review <phase>` where `<phase>` ∈ `proposal | spec | design | tasks | code`:
+
+| Phase | Audit checklist | Auditor role |
+|-------|-----------------|--------------|
+| `proposal` | `references/reviews/proposal-audit.md` | Business Analyst / PM |
+| `spec` | `references/reviews/spec-audit.md` | QA Lead |
+| `design` | `references/reviews/design-audit.md` | System Architect |
+| `tasks` | `references/reviews/plan-audit.md` | Tech Lead / Scrum Master |
+| `code` | `references/reviews/code-audit.md` | Multi-Pass Code Reviewer (two-pass, below) |
+
+**Recording the verdict (all phases):** the verdict is persisted to the global
+gate-state store — NEVER as a marker inside the reviewed artifact or the repo:
+
+```bash
+sdlaic gate set --phase <proposal|spec|design|tasks> \
+  --status <approved|failed> --verdict <APPROVE|REQUEST_CHANGES|REJECT>
+```
+
+`APPROVE → approved` (unlocks the next phase); `REQUEST_CHANGES | REJECT → failed`
+(the draft skill re-drafts and increments the attempt).
+
+**Workflow toggle:** in `light`/`free`, review is skipped and the enforcer marks
+the gate `skipped`.
+
+## Artifact-gate flow (proposal | spec | design | tasks)
+
+1. Spawn a clean-context subagent (`subagent_type="general-purpose"`) with only:
+   the target artifact, its upstream approved artifact(s), and the phase's audit
+   checklist (`references/reviews/<phase>-audit.md`).
+2. The subagent audits against the checklist, applying the Claim Verification
+   Rule, and returns a verdict + findings (each with `path:line`/ticket evidence).
+3. Persist the verdict via `sdlaic gate set` (above). Do NOT write it into the repo.
+4. On `failed`, hand findings back to the draft skill for rework.
+
+## Code-gate flow (`review code`)
+
+The `code` phase is the terminal pre-PR audit after `apply`. It runs the
+**two-pass** review below (compliance + quality) and its outcome is recorded in
+`review.md` (Step 3). It does not gate a downstream phase, so no `sdlaic gate set`
+call is required for `code`.
+
+## Two-pass code review
 
 Review is a two-pass gate. Pass 1 checks whether implementation matches the contract (proposal + design). Pass 2 checks whether the code is architecturally sound and would survive a CURe PR review. Both passes produce independent verdicts. Each pass runs in a separate subagent with clean context to prevent hallucination from accumulated chat history.
 

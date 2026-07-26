@@ -20,6 +20,7 @@ func setupChangeDir(t *testing.T, artifacts map[string]string) string {
 
 	for name, content := range artifacts {
 		path := filepath.Join(changeDir, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755)) // support nested keys like specs/core/spec.md
 		require.NoError(t, os.WriteFile(path, []byte(content), 0644))
 	}
 
@@ -47,64 +48,51 @@ func TestAnalyzePhase_AllPhases(t *testing.T) {
 			expected: domain.PhaseContext,
 		},
 		{
-			name: "CHALLENGED - context + rationale populated",
+			name: "PROPOSED - context + proposal populated",
 			artifacts: map[string]string{
-				"context.md":   "# Context\n\nReal content.",
-				"rationale.md": "# Rationale\n\nReal rationale.",
-			},
-			expected: domain.PhaseChallenged,
-		},
-		{
-			name: "PROPOSED - context + rationale + proposal populated",
-			artifacts: map[string]string{
-				"context.md":   "# Context\n\nReal content.",
-				"rationale.md": "# Rationale\n\nReal rationale.",
-				"proposal.md":  "# Proposal\n\nReal proposal content here.",
+				"context.md":  "# Context\n\nReal content.",
+				"proposal.md": "# Proposal\n\nReal proposal content here.",
 			},
 			expected: domain.PhaseProposed,
 		},
 		{
-			name: "SPECIFIED - context + rationale + proposal + specs populated",
+			name: "SPECIFIED - context + proposal + spec populated",
 			artifacts: map[string]string{
-				"context.md":   "# Context\n\nReal content.",
-				"rationale.md": "# Rationale\n\nReal rationale.",
-				"proposal.md":  "# Proposal\n\nReal proposal.",
-				"specs.md":     "# Specs\n\nReal specification content.",
+				"context.md":         "# Context\n\nReal content.",
+				"proposal.md":        "# Proposal\n\nReal proposal.",
+				"specs/core/spec.md": "# Spec\n\nReal specification content.",
 			},
 			expected: domain.PhaseSpecified,
 		},
 		{
 			name: "DESIGNED - context through design populated",
 			artifacts: map[string]string{
-				"context.md":   "# Context\n\nReal content.",
-				"rationale.md": "# Rationale\n\nReal rationale.",
-				"proposal.md":  "# Proposal\n\nReal proposal.",
-				"specs.md":     "# Specs\n\nReal specs.",
-				"design.md":    "# Design\n\nReal design document content.",
+				"context.md":         "# Context\n\nReal content.",
+				"proposal.md":        "# Proposal\n\nReal proposal.",
+				"specs/core/spec.md": "# Spec\n\nReal specs.",
+				"design.md":          "# Design\n\nReal design document content.",
 			},
 			expected: domain.PhaseDesigned,
 		},
 		{
 			name: "PLANNED - context through tasks populated",
 			artifacts: map[string]string{
-				"context.md":   "# Context\n\nReal content.",
-				"rationale.md": "# Rationale\n\nReal rationale.",
-				"proposal.md":  "# Proposal\n\nReal proposal.",
-				"specs.md":     "# Specs\n\nReal specs.",
-				"design.md":    "# Design\n\nReal design.",
-				"tasks.md":     "# Tasks\n\n- [ ] Implement feature\n- [ ] Write tests",
+				"context.md":         "# Context\n\nReal content.",
+				"proposal.md":        "# Proposal\n\nReal proposal.",
+				"specs/core/spec.md": "# Spec\n\nReal specs.",
+				"design.md":          "# Design\n\nReal design.",
+				"tasks.md":           "# Tasks\n\n- [ ] Implement feature\n- [ ] Write tests",
 			},
 			expected: domain.PhasePlanned,
 		},
 		{
 			name: "IMPLEMENTED - all artifacts + tasks all checked",
 			artifacts: map[string]string{
-				"context.md":   "# Context\n\nReal content.",
-				"rationale.md": "# Rationale\n\nReal rationale.",
-				"proposal.md":  "# Proposal\n\nReal proposal.",
-				"specs.md":     "# Specs\n\nReal specs.",
-				"design.md":    "# Design\n\nReal design.",
-				"tasks.md":     "# Tasks\n\n- [x] Implement feature\n- [x] Write tests",
+				"context.md":         "# Context\n\nReal content.",
+				"proposal.md":        "# Proposal\n\nReal proposal.",
+				"specs/core/spec.md": "# Spec\n\nReal specs.",
+				"design.md":          "# Design\n\nReal design.",
+				"tasks.md":           "# Tasks\n\n- [x] Implement feature\n- [x] Write tests",
 			},
 			expected: domain.PhaseImplemented,
 		},
@@ -118,6 +106,73 @@ func TestAnalyzePhase_AllPhases(t *testing.T) {
 			assert.Equal(t, tt.expected, phase)
 		})
 	}
+}
+
+// --- Spec directory detection (only spec.md counts) ---
+
+func TestAnalyzeArtifacts_SpecOnlyCountsSpecMd(t *testing.T) {
+	// A stray README under specs/ must NOT satisfy the spec artifact.
+	changeDir := setupChangeDir(t, map[string]string{
+		"context.md":           "# Context\n\nReal content.",
+		"proposal.md":          "# Proposal\n\nReal proposal.",
+		"specs/core/README.md": "# Readme\n\nUnrelated prose that should not count.",
+	})
+	artifacts, err := AnalyzeArtifacts(changeDir)
+	require.NoError(t, err)
+	assert.False(t, artifacts["spec"].Exists, "README.md under specs/ must not satisfy the spec artifact")
+
+	phase, err := AnalyzePhase(changeDir)
+	require.NoError(t, err)
+	assert.Equal(t, domain.PhaseProposed, phase, "stray specs/ markdown must not advance to SPECIFIED")
+}
+
+func TestAnalyzeArtifacts_SpecMdCounts(t *testing.T) {
+	changeDir := setupChangeDir(t, map[string]string{
+		"context.md":         "# Context\n\nReal content.",
+		"proposal.md":        "# Proposal\n\nReal proposal.",
+		"specs/core/spec.md": "# Spec\n\nReal requirement.",
+	})
+	artifacts, err := AnalyzeArtifacts(changeDir)
+	require.NoError(t, err)
+	assert.True(t, artifacts["spec"].Exists)
+	assert.True(t, artifacts["spec"].Populated)
+}
+
+func TestIsCapabilitySpec(t *testing.T) {
+	specsDir := filepath.Join("change", "specs")
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{"capability spec", filepath.Join(specsDir, "auth", "spec.md"), true},
+		{"case-insensitive leaf", filepath.Join(specsDir, "auth", "SPEC.MD"), true},
+		{"no capability dir", filepath.Join(specsDir, "spec.md"), false},
+		{"nested too deep", filepath.Join(specsDir, "a", "b", "spec.md"), false},
+		{"unrelated leaf", filepath.Join(specsDir, "auth", "README.md"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsCapabilitySpec(specsDir, tt.path))
+		})
+	}
+}
+
+func TestAnalyzePhase_RejectsMalformedSpecPath(t *testing.T) {
+	// specs/spec.md (no capability dir) violates the specs/<capability>/spec.md
+	// contract and must NOT satisfy the spec artifact or advance the phase.
+	changeDir := setupChangeDir(t, map[string]string{
+		"context.md":    "# Context\n\nReal content.",
+		"proposal.md":   "# Proposal\n\nReal proposal.",
+		"specs/spec.md": "# Spec\n\nReal requirement.",
+	})
+	artifacts, err := AnalyzeArtifacts(changeDir)
+	require.NoError(t, err)
+	assert.False(t, artifacts["spec"].Exists, "specs/spec.md must not satisfy the spec artifact")
+
+	phase, err := AnalyzePhase(changeDir)
+	require.NoError(t, err)
+	assert.Equal(t, domain.PhaseProposed, phase, "malformed spec path must not advance to SPECIFIED")
 }
 
 // --- Edge case tests ---
@@ -147,12 +202,11 @@ func TestAnalyzePhase_PartiallyFilled(t *testing.T) {
 func TestAnalyzePhase_TasksPartiallyChecked(t *testing.T) {
 	// All artifacts populated but tasks have mixed checked/unchecked → PLANNED (not IMPLEMENTED)
 	changeDir := setupChangeDir(t, map[string]string{
-		"context.md":   "# Context\n\nReal content.",
-		"rationale.md": "# Rationale\n\nReal rationale.",
-		"proposal.md":  "# Proposal\n\nReal proposal.",
-		"specs.md":     "# Specs\n\nReal specs.",
-		"design.md":    "# Design\n\nReal design.",
-		"tasks.md":     "# Tasks\n\n- [x] Implement feature\n- [ ] Write tests",
+		"context.md":         "# Context\n\nReal content.",
+		"proposal.md":        "# Proposal\n\nReal proposal.",
+		"specs/core/spec.md": "# Spec\n\nReal specs.",
+		"design.md":          "# Design\n\nReal design.",
+		"tasks.md":           "# Tasks\n\n- [x] Implement feature\n- [ ] Write tests",
 	})
 	phase, err := AnalyzePhase(changeDir)
 	require.NoError(t, err)
@@ -168,17 +222,16 @@ func TestAnalyzePhase_NonexistentDir(t *testing.T) {
 
 func TestAnalyzeArtifacts_AllPresent(t *testing.T) {
 	changeDir := setupChangeDir(t, map[string]string{
-		"context.md":   "# Context\n\nReal content.",
-		"rationale.md": "# Rationale\n\nReal rationale.",
-		"proposal.md":  "# Proposal\n\nReal proposal.",
-		"specs.md":     "# Specs\n\nReal specs.",
-		"design.md":    "# Design\n\nReal design.",
-		"tasks.md":     "# Tasks\n\n- [ ] Task 1\n- [ ] Task 2",
+		"context.md":         "# Context\n\nReal content.",
+		"proposal.md":        "# Proposal\n\nReal proposal.",
+		"specs/core/spec.md": "# Spec\n\nReal specs.",
+		"design.md":          "# Design\n\nReal design.",
+		"tasks.md":           "# Tasks\n\n- [ ] Task 1\n- [ ] Task 2",
 	})
 
 	artifacts, err := AnalyzeArtifacts(changeDir)
 	require.NoError(t, err)
-	assert.Len(t, artifacts, 6)
+	assert.Len(t, artifacts, 5)
 
 	for _, at := range domain.OrderedArtifactTypes() {
 		status, ok := artifacts[string(at)]
@@ -193,7 +246,7 @@ func TestAnalyzeArtifacts_NonePresent(t *testing.T) {
 
 	artifacts, err := AnalyzeArtifacts(changeDir)
 	require.NoError(t, err)
-	assert.Len(t, artifacts, 6)
+	assert.Len(t, artifacts, 5)
 
 	for _, at := range domain.OrderedArtifactTypes() {
 		status := artifacts[string(at)]

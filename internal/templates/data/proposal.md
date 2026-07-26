@@ -1,38 +1,30 @@
-# Proposal
+# Proposal: <change-name>
 
-## Summary
+**Change ID**: `<change-name>`
+**Ticket**: <KEY> (<summary>)
 
-<!-- One-paragraph summary of the proposed solution -->
+## Why
+[One paragraph: the problem this change solves and its business rationale.]
 
-## Options Considered
+## Scope
 
-### Option A: <!-- Name -->
+| IN SCOPE | OUT OF SCOPE |
+|----------|--------------|
+| [thing this change will do] | [related thing it will deliberately NOT do] |
 
-**Description:** <!-- Describe the approach -->
+## What Changes
+- **[Bug fix / Enhancement / New feature]: [description]**
+  - [Specific change]
 
-**Pros:**
--
+## Success Criteria
+- [ ] [Testable criterion tied to the ticket]
 
-**Cons:**
--
+## Impact
+- **Affected area (indicative)**: [key modules/paths]
+- **Breaking changes**: [None intended / list]
 
-### Option B: <!-- Name -->
-
-**Description:** <!-- Describe the approach -->
-
-**Pros:**
--
-
-**Cons:**
--
-
-## Recommended Option
-
-<!-- State which option is recommended and why -->
-
-## Impact Analysis
-
-- **Performance:** <!-- Impact on performance -->
-- **Security:** <!-- Security implications -->
-- **Compatibility:** <!-- Backward compatibility -->
-- **Dependencies:** <!-- New dependencies required -->
+## Challenge & Resolution Log
+<!-- Populated from the scope grill. Each row: the challenge raised and how it was resolved. -->
+| Challenge | Resolution |
+|-----------|------------|
+| [question raised during grill] | [agreed answer] |

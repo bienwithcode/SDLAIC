@@ -17,55 +17,69 @@ No phase may be skipped. No code may be written outside `apply`. Every phase beg
 
 1. **No Unverified Code.** You may NOT write implementation code unless you are in the `apply` phase AND possess a verified `tasks.md`. If you find yourself about to write code in any other phase, STOP.
 2. **Research First.** Every phase transition MUST begin with a code research query (tool chosen per your workspace convention — see `references/code-research.md`). Output a "Research Summary" before taking any other action.
-3. **State Awareness.** Always run `sdlaic status --change <name>` before routing. The plugin phase is inferred from which artifacts exist in the change directory — the enforcer determines the current phase based on artifact presence.
+3. **State Awareness.** Before routing, read BOTH sources of truth: `sdlaic status --change <name>` (which artifacts exist) AND `sdlaic gate status --change <name> --json` (whether each phase's gate has passed). A phase is **unblocked only when its artifact exists AND its gate is `approved` or `skipped`.**
 
-## State Machine
+## Pipeline (Gated Micro-Loops)
+
+Each phase is a micro-loop: **grill (strict only) → draft → review → gate**. The
+draft skill is mandatory; grill/review are toggled by workflow level (`strict` =
+both on; `light`/`free` = draft-only, gates auto-`skipped`).
 
 ```
-NO_ACTIVE_CHANGE ──→ new ──→ INITIALIZED ──→ grillme ──→ CHALLENGED
-                                                                     │
-CHALLENGED ──→ brainstorm ──→ PROPOSED ──→ plan ──→ PLANNED
-                                                                │
-PLANNED ──→ apply ──→ IMPLEMENTED ──→ review ──→ COMPLETE
+NO_ACTIVE_CHANGE ──→ new ──→ context.md
+   │
+   ▼   [grillme proposal] → proposal → [review proposal] → gate:proposal ✓
+   ▼   [grillme spec]     → spec     → [review spec]     → gate:spec ✓
+   ▼   [grillme design]   → design   → [review design]   → gate:design ✓
+   ▼   [grillme tasks]    → plan     → [review tasks]    → gate:tasks ✓
+   ▼   apply ──→ code ──→ review code ──→ review.md
 ```
 
 ## Phase Routing
 
-Run `sdlaic status --change <name>` to check artifact completion, then determine the plugin phase from which artifacts exist:
+Read artifact presence (`sdlaic status`) AND gate status (`sdlaic gate status --json`), then route on the pair `(highest artifact present, its gate status)`. A phase is **unblocked only when its artifact exists AND its gate has `is_passing: true` in the JSON output.**
 
-| Current State | User Request | Route To |
-|---|---|---|
-| No active change | Any work request | `new` — initialize a change first |
-| INITIALIZED | Any | `grillme` — challenge assumptions before design |
-| CHALLENGED | Any | `brainstorm` — design the solution |
-| PROPOSED | Any | `plan` — break into tasks |
-| PLANNED | Any | `apply` — execute tasks |
-| IMPLEMENTED | Any | `review` — audit against proposal |
-| COMPLETE | New work | `new` — start fresh |
+| Highest Artifact Found | Gate Status | Routing Action |
+|------------------------|-------------|----------------|
+| context only (or gate not passed for proposal) | proposal `is_passing: false` | `grillme proposal` → `proposal` → `review proposal` |
+| proposal passed | spec `is_passing: false` | `grillme spec` → `spec` → `review spec` |
+| spec passed (or skipped as non-user-facing) | design `is_passing: false` | `grillme design` → `design` → `review design` |
+| design passed | tasks `is_passing: false` | `grillme tasks` → `plan` → `review tasks` |
+| tasks passed | — | `apply` — execute tasks |
+| code implemented | — | `review code` — terminal pre-PR audit |
+| review complete | new work | `new` — start fresh |
+
+**Between phases (context isolation):** once a gate is `approved`, instruct the
+user/agent to run `/clear` before starting the next phase. The next phase reads
+the approved artifacts from disk with clean context. Within a phase, run `grill`
+and `review` in clean-context subagents.
 
 ## Enforcement Checks (Every Turn)
 
 Before taking action, verify:
 
-- [ ] Plugin phase is known (checked artifact presence via `sdlaic status --change <name>`)
+- [ ] Both artifact presence (`sdlaic status`) and gate status (`sdlaic gate status --json`) were checked
 - [ ] Research Summary was produced at phase start
 - [ ] No implementation code is being written outside `apply`
+- [ ] The phase is not advanced past a gate that is not `approved`/`skipped`
 - [ ] The correct artifact exists for the current phase:
-  - INITIALIZED: change directory exists (context.md is optional)
-  - CHALLENGED: `rationale.md` exists
-  - PROPOSED: `proposal.md` + `design.md` exist (in that authoring order: proposal → optional `specs/` → design)
-  - PLANNED: `tasks.md` exists
-  - IMPLEMENTED: committed code exists
-  - COMPLETE: `review.md` exists
+  - proposal phase: `proposal.md` exists (IN/OUT-OF-SCOPE table + Challenge & Resolution Log)
+  - spec phase: `specs/<capability>/spec.md` exists
+  - design phase: `design.md` exists
+  - tasks phase: `tasks.md` exists
+  - apply: committed code exists
+  - code review: `review.md` recorded
 
 ## Common Mistakes
 
 | Mistake | Why It's Wrong | Fix |
 |---------|---------------|-----|
-| "I'll just write the code" in brainstorm phase | Skips challenge + design + plan | Route through `grillme` → `brainstorm` → `plan` first |
+| "I'll just write the code" during a design phase | Skips the gated proposal → spec → design → tasks loops | Route through the phase micro-loops first |
+| Advancing to the next phase while the gate is `failed`/`pending` | Unverified artifact poisons everything downstream | A phase unblocks only when its artifact exists AND its gate is `approved`/`skipped` |
+| Using the deprecated `brainstorm` skill | It bundled proposal+spec+design (generative overreach) | Use the 1:1 skills: `proposal` → `spec` → `design` |
 | Skipping code research because "I already know the codebase" | Assumptions without evidence lead to rework | Run research. Always. |
-| Starting `apply` without `tasks.md` | No verified plan = uncontrolled scope | Generate tasks via `plan` first |
-| Asking the user what phase to be in | The artifact presence decides, not the user | Run `sdlaic status --change <name>` and route accordingly |
+| Starting `apply` without an `approved` tasks gate | No verified plan = uncontrolled scope | Generate `tasks.md` via `plan` and pass the tasks gate first |
+| Asking the user what phase to be in | Artifact presence + gate status decide, not the user | Run `sdlaic status` and `sdlaic gate status --json`, then route |
 | Treating this as a suggestion | This is a methodology enforcer, not a guideline | Every rule above is mandatory |
 
 ## Anti-Rationalization
@@ -75,7 +89,8 @@ Before taking action, verify:
 | "This is a small fix, I don't need the full workflow" | Small fixes still need a change, tasks, and verification. Use abbreviated artifacts but don't skip phases. |
 | "I'll do the research after I start coding" | Research before action. Always. Code without research is guessing. |
 | "The user asked me to code, so I should code" | The user expects disciplined execution. Route through the correct phase first. |
-| "I can combine grillme and brainstorm" | No. Challenge first, then design. Combining them defeats the purpose of pressure-testing assumptions. |
+| "I can combine the proposal and design phases" | No. Each artifact has its own gate. Combining them recreates the generative overreach that `brainstorm` was deprecated for. |
+| "The gate is just paperwork, I'll advance anyway" | The gate IS the control. Advancing past a non-passing gate is the exact failure this system prevents. |
 
 ## Handoff
 

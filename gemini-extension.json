@@ -5,12 +5,14 @@
   "skills": [
     "enforcer",
     "new",
-    "grillme",
-    "brainstorm",
+    "proposal",
+    "spec",
+    "design",
     "plan",
-    "apply",
+    "grillme",
     "review",
-    "verify"
+    "apply",
+    "brainstorm"
   ],
   "agents": [
     "compliance-reviewer",

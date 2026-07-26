@@ -1,23 +1,29 @@
-# Tasks
+# Tasks: <change-name>
 
-## Implementation Tasks
+## Milestone 1: <Subsystem name from design.md>
+[TDD task pairs for this subsystem, in order]
+- [ ] 1.1 **[TEST-RED:unit]** Add `[TestName]` — assert [behavior].
+      `<test-command-to-run-specific-test>` → FAIL
+- [ ] 1.2 **[IMPL]** Add `[ImplementationName]` to pass 1.1.
+      GREEN: `<test-command-to-run-specific-test>` → PASS
+- [ ] 1.3 **[VERIFY]** Milestone Integration Verification — <subsystem> integrates end-to-end.
+      Verify: `<command exercising the whole milestone>`
+- [ ] 1.4 **[COMMIT]** `<prefix>: <milestone-1 summary>`
 
-- [ ] <!-- Task 1: Describe the first implementation step -->
-- [ ] <!-- Task 2: Describe the second implementation step -->
-- [ ] <!-- Task 3: Describe the third implementation step -->
+## Milestone 2: <Next subsystem>
+- [ ] 2.1 **[TEST-RED:unit]** Add `[TestName]` — assert [behavior].
+      `<test-command-to-run-specific-test>` → FAIL
+- [ ] 2.2 **[IMPL]** Add `[ImplementationName]` to pass 2.1.
+      GREEN: `<test-command-to-run-specific-test>` → PASS
+- [ ] 2.N **[COMMIT]** `<prefix>: <milestone-2 summary>`
 
-## Verification Tasks
+## Completion
+- [ ] Run full project test suite: `<exact command>`
+- [ ] Manual QA against Jira acceptance criteria
+- [ ] Update tasks.md and archive change
 
-- [ ] Write unit tests for <!-- component -->
-- [ ] Write integration tests for <!-- workflow -->
-- [ ] Manual testing: <!-- describe scenario -->
-
-## Documentation Tasks
-
-- [ ] Update README with <!-- information -->
-- [ ] Add inline documentation for <!-- component -->
-- [ ] Update CHANGELOG
-
-## Notes
-
-<!-- Any additional notes or context for task execution -->
+## Challenge & Resolution Log
+<!-- From the plan grill. State "No grill (workflow: <level>)" if none ran. -->
+| Challenge | Resolution |
+|-----------|------------|
+| [sizing / TDD / milestone concern] | [how it was resolved] |

@@ -15,6 +15,10 @@ import (
 // AnalyzePhase determines the current phase of a change by examining which
 // artifact files exist and are populated. Phases progress in order:
 // EMPTY → CONTEXT → PROPOSED → SPECIFIED → DESIGNED → PLANNED → IMPLEMENTED
+//
+// This is artifact-only detection. Gate verdicts are tracked separately via
+// `sdlaic gate status`; the `enforcer` skill couples artifact presence with
+// gate status.
 func AnalyzePhase(changeDir string) (domain.Phase, error) {
 	// Verify the change directory exists
 	info, err := os.Stat(changeDir)
@@ -63,19 +67,14 @@ func AnalyzePhase(changeDir string) (domain.Phase, error) {
 		return domain.PhaseDesigned, nil
 	}
 
-	// SPECIFIED: specs.md is populated
-	if isPhaseComplete(artifacts, orderedTypes, domain.ArtifactSpecs) {
+	// SPECIFIED: specs/<capability>/spec.md is populated
+	if isPhaseComplete(artifacts, orderedTypes, domain.ArtifactSpec) {
 		return domain.PhaseSpecified, nil
 	}
 
 	// PROPOSED: proposal.md is populated
 	if isPhaseComplete(artifacts, orderedTypes, domain.ArtifactProposal) {
 		return domain.PhaseProposed, nil
-	}
-
-	// CHALLENGED: rationale.md is populated
-	if isPhaseComplete(artifacts, orderedTypes, domain.ArtifactRationale) {
-		return domain.PhaseChallenged, nil
 	}
 
 	// CONTEXT: context.md is populated
@@ -108,29 +107,17 @@ func AnalyzeArtifacts(changeDir string) (map[string]domain.ArtifactStatus, error
 	for _, at := range domain.OrderedArtifactTypes() {
 		status := domain.ArtifactStatus{}
 
-		if at == domain.ArtifactSpecs {
-			// First try specs.md file
-			filePath := filepath.Join(changeDir, at.FileName())
-			data, err := os.ReadFile(filePath)
-			if err == nil {
-				status.Exists = true
-				content := string(data)
-				status.Populated = IsPopulated(content)
-				status.Valid = status.Populated
-				result[string(at)] = status
-				continue
-			}
-
-			// If specs.md doesn't exist, try specs/ directory
+		if at == domain.ArtifactSpec {
+			// The spec artifact is directory-based: specs/<capability>/spec.md.
 			specsDir := filepath.Join(changeDir, "specs")
 			combinedContent, exists, err := readSpecsDir(specsDir)
 			if err == nil && exists {
 				status.Exists = true
 				status.Populated = IsPopulated(combinedContent)
 				status.Valid = status.Populated
-				result[string(at)] = status
-				continue
 			}
+			result[string(at)] = status
+			continue
 		}
 
 		filePath := filepath.Join(changeDir, at.FileName())
@@ -157,11 +144,11 @@ func AnalyzeArtifacts(changeDir string) (map[string]domain.ArtifactStatus, error
 func IsPopulated(content string) bool {
 	// Strip HTML comments
 	stripped := stripHTMLComments(content)
-	
+
 	// Strip markdown header lines (lines starting with #)
 	headerRe := regexp.MustCompile(`(?m)^#+\s.*$`)
 	stripped = headerRe.ReplaceAllString(stripped, "")
-	
+
 	// Check if remaining content has non-whitespace characters
 	return len(strings.TrimSpace(stripped)) > 0
 }
@@ -193,8 +180,10 @@ func readFileContent(path string) (string, error) {
 	return string(data), nil
 }
 
-// readSpecsDir recursively finds and reads all .md files in the specs directory.
-// Returns combined content of all markdown files found, or error.
+// readSpecsDir recursively finds and reads the per-capability spec files in the
+// specs directory. Only files named spec.md count (specs/<capability>/spec.md) —
+// unrelated markdown (README.md, notes.md) must not satisfy the spec artifact.
+// Returns combined content of all spec.md files found, or error.
 func readSpecsDir(specsDir string) (string, bool, error) {
 	info, err := os.Stat(specsDir)
 	if err != nil {
@@ -211,7 +200,7 @@ func readSpecsDir(specsDir string) (string, bool, error) {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
+		if !info.IsDir() && IsCapabilitySpec(specsDir, path) {
 			data, err := os.ReadFile(path)
 			if err != nil {
 				return err
@@ -227,4 +216,17 @@ func readSpecsDir(specsDir string) (string, bool, error) {
 	}
 
 	return combined.String(), hasFiles, nil
+}
+
+// IsCapabilitySpec reports whether path is a spec leaf nested under exactly one
+// capability directory beneath specsDir — i.e. specs/<capability>/spec.md. It
+// rejects specs/spec.md (no capability dir) and specs/a/b/spec.md (nested too
+// deep), matching the documented capability-spec contract.
+func IsCapabilitySpec(specsDir, path string) bool {
+	rel, err := filepath.Rel(specsDir, path)
+	if err != nil {
+		return false
+	}
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	return len(parts) == 2 && parts[0] != "" && strings.EqualFold(parts[1], "spec.md")
 }

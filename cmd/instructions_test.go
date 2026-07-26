@@ -8,7 +8,7 @@ import (
 )
 
 func TestInstructions_AllTypes(t *testing.T) {
-	types := []string{"context", "proposal", "specs", "design", "tasks"}
+	types := []string{"context", "proposal", "spec", "design", "tasks"}
 	for _, typ := range types {
 		t.Run(typ, func(t *testing.T) {
 			output, err := ExecuteCommand(rootCmd, "instructions", typ)

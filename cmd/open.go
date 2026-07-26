@@ -78,7 +78,7 @@ func runOpenClaude(cmd *cobra.Command, args []string) error {
 
 		if isInteractive && openStorage == "" && openWorkflow == "" {
 			fmt.Fprintln(cmd.OutOrStdout(), "Workspace is not initialized. Let's set it up!")
-			
+
 			// Prompt for Storage Mode
 			sChoice, err := workspace.AskChoice(os.Stdin, cmd.OutOrStdout(), "Select Storage Mode", []string{"local", "ignored", "global"}, "local")
 			if err != nil {

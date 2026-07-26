@@ -121,15 +121,7 @@ func TestStatus_PhaseProgression(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(output), &status))
 	assert.Equal(t, domain.PhaseContext, status.CurrentPhase)
 
-	// Phase: CHALLENGED — add rationale.md
-	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "rationale.md"), []byte("# Rationale\nReal content."), 0644))
-	resetStatusFlags()
-	output, err = ExecuteCommand(rootCmd, "status", "--json")
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal([]byte(output), &status))
-	assert.Equal(t, domain.PhaseChallenged, status.CurrentPhase)
-
-	// Phase: PROPOSED — add proposal.md
+	// Phase: PROPOSED — add proposal.md (rationale/CHALLENGED removed)
 	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "proposal.md"), []byte("# Proposal\nReal content."), 0644))
 	resetStatusFlags()
 	output, err = ExecuteCommand(rootCmd, "status", "--json")
@@ -137,8 +129,10 @@ func TestStatus_PhaseProgression(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(output), &status))
 	assert.Equal(t, domain.PhaseProposed, status.CurrentPhase)
 
-	// Phase: SPECIFIED — add specs.md
-	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "specs.md"), []byte("# Specs\nReal content."), 0644))
+	// Phase: SPECIFIED — add specs/<capability>/spec.md
+	specDir := filepath.Join(changeDir, "specs", "core")
+	require.NoError(t, os.MkdirAll(specDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(specDir, "spec.md"), []byte("# Spec\nReal content."), 0644))
 	resetStatusFlags()
 	output, err = ExecuteCommand(rootCmd, "status", "--json")
 	require.NoError(t, err)
@@ -171,14 +165,14 @@ func TestStatus_JSONArtifactFields(t *testing.T) {
 	var status domain.ChangeStatus
 	require.NoError(t, json.Unmarshal([]byte(output), &status))
 
-	// Should have all 6 artifact types
-	assert.Len(t, status.Artifacts, 6)
+	// Should have all 5 artifact types (rationale removed, specs→spec)
+	assert.Len(t, status.Artifacts, 5)
 	assert.Contains(t, status.Artifacts, "context")
-	assert.Contains(t, status.Artifacts, "rationale")
 	assert.Contains(t, status.Artifacts, "proposal")
-	assert.Contains(t, status.Artifacts, "specs")
+	assert.Contains(t, status.Artifacts, "spec")
 	assert.Contains(t, status.Artifacts, "design")
 	assert.Contains(t, status.Artifacts, "tasks")
+	assert.NotContains(t, status.Artifacts, "rationale")
 
 	// context should be populated (from template)
 	assert.True(t, status.Artifacts["context"].Exists)

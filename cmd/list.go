@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	listAll bool
+	listAll  bool
 	listJSON bool
 )
 

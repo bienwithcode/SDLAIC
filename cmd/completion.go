@@ -16,10 +16,10 @@ Example:
   sdlaic completion bash > /etc/bash_completion.d/sdlaic
   sdlaic completion zsh > "${fpath[1]}/_sdlaic"
   sdlaic completion fish > ~/.config/fish/completions/sdlaic.fish`,
-	Args:              cobra.ExactArgs(1),
-	ValidArgs:         []string{"bash", "zsh", "fish", "powershell"},
+	Args:               cobra.ExactArgs(1),
+	ValidArgs:          []string{"bash", "zsh", "fish", "powershell"},
 	DisableFlagParsing: true,
-	RunE:              runCompletion,
+	RunE:               runCompletion,
 }
 
 func init() {

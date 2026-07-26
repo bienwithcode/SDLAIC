@@ -16,10 +16,9 @@ var templateFS embed.FS
 
 // templateFileNames maps artifact types to their embedded file names.
 var templateFileNames = map[domain.ArtifactType]string{
-	domain.ArtifactContext:   "data/context.md",
-	domain.ArtifactRationale: "data/rationale.md",
+	domain.ArtifactContext:  "data/context.md",
 	domain.ArtifactProposal: "data/proposal.md",
-	domain.ArtifactSpecs:    "data/specs.md",
+	domain.ArtifactSpec:     "data/spec.md",
 	domain.ArtifactDesign:   "data/design.md",
 	domain.ArtifactTasks:    "data/tasks.md",
 }

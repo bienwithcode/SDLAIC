@@ -24,8 +24,8 @@ var rootCmd = &cobra.Command{
 	Long: `SDLAIC CLI manages change artifacts for spec-driven development.
 It provides workspace initialization, change lifecycle management,
 artifact templating, validation, and status reporting.`,
-	SilenceUsage:  true,
-	Version:       cliVersion,
+	SilenceUsage: true,
+	Version:      cliVersion,
 }
 
 // cliVersion holds the version injected at build time.

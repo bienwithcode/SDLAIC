@@ -17,7 +17,7 @@ func TestGetTemplate_AllTypes(t *testing.T) {
 	}{
 		{domain.ArtifactContext, "context.md"},
 		{domain.ArtifactProposal, "proposal.md"},
-		{domain.ArtifactSpecs, "specs.md"},
+		{domain.ArtifactSpec, "spec.md"},
 		{domain.ArtifactDesign, "design.md"},
 		{domain.ArtifactTasks, "tasks.md"},
 	}
@@ -37,7 +37,7 @@ func TestGetTemplate_InvalidType(t *testing.T) {
 }
 
 func TestGetTemplateByName(t *testing.T) {
-	tests := []string{"context", "proposal", "specs", "design", "tasks"}
+	tests := []string{"context", "proposal", "spec", "design", "tasks"}
 
 	for _, name := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestGetTemplateByName_InvalidName(t *testing.T) {
 
 func TestListTemplates(t *testing.T) {
 	templates := ListTemplates()
-	assert.Len(t, templates, 6)
+	assert.Len(t, templates, 5)
 
 	names := make(map[string]bool)
 	for _, tmpl := range templates {
@@ -63,11 +63,12 @@ func TestListTemplates(t *testing.T) {
 	}
 
 	assert.True(t, names["context"])
-	assert.True(t, names["rationale"])
 	assert.True(t, names["proposal"])
-	assert.True(t, names["specs"])
+	assert.True(t, names["spec"])
 	assert.True(t, names["design"])
 	assert.True(t, names["tasks"])
+	assert.False(t, names["rationale"], "rationale template removed")
+	assert.False(t, names["specs"], "specs renamed to spec")
 }
 
 func TestTemplateContent_HasMarkdownStructure(t *testing.T) {
@@ -97,4 +98,14 @@ func TestTemplateContent_NoPlaceholders(t *testing.T) {
 				"template %s should not contain {{ placeholders", at)
 		})
 	}
+}
+
+func TestTasksTemplate_HasCommitCheckpoint(t *testing.T) {
+	// The tasks template must model the per-section [COMMIT] checkpoint that
+	// skills/apply requires ("No exceptions") — otherwise plans scaffolded from
+	// `sdlaic instructions tasks` violate the apply contract from the start.
+	content, err := GetTemplate(domain.ArtifactTasks)
+	require.NoError(t, err)
+	assert.True(t, strings.Contains(content, "[COMMIT]"),
+		"tasks template should include a [COMMIT] checkpoint per milestone")
 }

@@ -19,16 +19,22 @@ Key packages:
 - `internal/workspace/` — walks up from cwd to find `.sdlaicrc`.
 - `internal/templates/` — artifact template rendering.
 
-State machine: the CLI does **not** own one. It tracks artifact files. The `enforcer` skill (Part 2) infers phase from which artifacts exist.
+State machine: the CLI does **not** own one. It tracks artifact files (`internal/state`) and gate verdicts (`internal/gatestate`, stored at `~/.sdlaic/state/<hash>/<change>/meta.json`). The `enforcer` skill (Part 2) infers phase from artifact presence **AND** gate status — a phase unblocks only when its artifact exists and its gate is `approved`/`skipped`.
 
 ### Part 2: Skills & Agents (Markdown)
 
-8 skill definitions in `skills/<name>/SKILL.md` — loaded by Claude Code, Codex, Gemini CLI via plugin manifests.
+Skill definitions in `skills/<name>/SKILL.md` — loaded by Claude Code, Codex, Gemini CLI via plugin manifests.
 
-- `enforcer` — state machine router, runs every agent turn
-- `new` → `grillme` → `brainstorm` → `plan` → `apply` → `review` → `verify` — phase-gated workflow
+- `enforcer` — gated pipeline router, runs every agent turn
+- `new` — initialize the change (`context.md`)
+- Phase-gated micro-loops, each **grill → draft → review → gate**:
+  - `grillme` (parameterized challenge engine) + `proposal` → `spec` → `design` → `plan` (draft skills) + `review` (parameterized auditor engine)
+- `apply` — execute tasks task-by-task after the tasks gate passes
+- `brainstorm` — **DEPRECATED** (split into `proposal`/`spec`/`design`)
 
-2 agent personas in `agents/` — `code-quality-reviewer.md`, `compliance-reviewer.md`.
+Grill/review checklists are modular: `references/grills/<phase>-grill.md` and `references/reviews/<phase>-audit.md`.
+
+2 agent personas in `agents/` — `code-quality-reviewer.md`, `compliance-reviewer.md` (invoked by `references/reviews/code-audit.md`).
 
 Reference docs in `references/` — consumed by skills, not the CLI.
 
@@ -63,7 +69,7 @@ No external services needed for tests. Tests use temp directories via `t.TempDir
 
 ### Go (CLI)
 
-- Module name: `sdlaic` (not `github.com/...`)
+- Module path: `github.com/bienwithcode/SDLAIC` (imports are `github.com/bienwithcode/SDLAIC/internal/...`)
 - Dependencies: `spf13/cobra`, `stretchr/testify` only. No heavy frameworks.
 - Error wrapping: `fmt.Errorf("context: %w", err)`
 - Sentinel errors in `internal/domain/` (`errors.New(...)`)

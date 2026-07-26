@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Use after the proposal has been approved. Translates the proposal into granular, ordered TDD task pairs — each behavioral task must have a failing test written before implementation. Each task must be completable in a single focused session.
+description: Use after the design phase is approved (proposal → spec → design complete). Translates the approved design into granular, ordered TDD task pairs — each behavioral task must have a failing test written before implementation. Each task must be completable in a single focused session.
 ---
 
 # Planning Phase
@@ -11,11 +11,11 @@ A plan without tests is a wish list. Every behavioral task must follow the RED �
 
 ## Pre-conditions
 
-- SDLAIC change is in PROPOSED state
-- `proposal.md` exists and has been approved by the user
-- `specs/<capability>/spec.md` exists if the change is user-facing (per the Step 4 Delta Spec Decision in `brainstorm`)
-- `design.md` exists with technical architecture decisions (built to satisfy proposal + spec)
-- `rationale.md` exists with validated decisions
+- SDLAIC change is in DESIGNED state (proposal → spec → design phases complete).
+- `proposal.md` exists and its gate is `approved` (or `skipped`).
+- `specs/<capability>/spec.md` exists (if the change is user-facing) and its gate is `approved`/`skipped`.
+- `design.md` exists with technical architecture and its gate is `approved`/`skipped`.
+- If workflow is `strict`, the plan grill has run before drafting (see Handoff / Gate).
 
 ## Process
 
@@ -55,9 +55,9 @@ Before decomposing, classify each requirement into one of three buckets. Step 4'
 
 Every task must land in one of these three buckets and carry the matching tag. Skipping silently is not acceptable.
 
-### Step 3: Decompose into Tasks
+### Step 3: Decompose into Tasks (grouped by Subsystem Milestone)
 
-Break the proposal into tasks following these rules:
+Break the design into tasks following these rules:
 
 1. **Size:** Each task should take 2-5 minutes of focused agent work
 2. **Atomic:** Each task produces one verifiable unit of progress
@@ -66,6 +66,8 @@ Break the proposal into tasks following these rules:
 5. **Vertical:** Prefer vertical slices (thin feature end-to-end) over horizontal layers (all models, then all controllers)
 6. **Strict 1-1 TDD pair:** Every `[TEST-RED:<level>]` is followed by **exactly one** `[IMPL]`. No grouping multiple `[IMPL]` tasks under a single `[TEST-RED]`. Each new behavior gets its own paired RED.
 7. **Plumbing uses `[WIRING]`:** Pure routing / DI / scaffolding work (no logic) uses `[WIRING]` instead of `[IMPL]` and does not need a paired `[TEST-RED]`, but must carry an empirical `Verify:` command on the second line.
+8. **Group by Subsystem Milestone:** Cluster tasks under the subsystem boundaries named in `design.md`. Each milestone is a section. This keeps the plan aligned with the design's boundaries and makes large (30+ file) PRs reviewable milestone by milestone.
+9. **Milestone Integration Verification:** End every Subsystem Milestone with a `[VERIFY]` (or `[TEST-RED:feature]`/`[IMPL]`) task that exercises the milestone end-to-end — proving the subsystem integrates, not just that its units pass in isolation.
 
 ### Step 4: Write Tasks in TDD Format
 
@@ -172,18 +174,29 @@ Review the instructions output for template guidance, then write the full task l
 ```markdown
 # Tasks: <change-name>
 
-## [Optional: Section headers matching your grouping]
+## Milestone 1: <Subsystem name from design.md>
+[TDD task pairs for this subsystem, in order]
+- [ ] 1.N **[VERIFY]** Milestone Integration Verification — <subsystem> integrates end-to-end.
+      Verify: `<command exercising the whole milestone>`
 
-## Tasks
-[paste all tasks here in order]
+## Milestone 2: <Next subsystem>
+[...]
 
 ## Completion
 - [ ] Run full project test suite: `<exact command>`
 - [ ] Manual QA against Jira acceptance criteria
 - [ ] Update tasks.md and archive change
+
+## Challenge & Resolution Log
+<!-- From the plan grill. State "No grill (workflow: <level>)" if none ran. -->
+| Challenge | Resolution |
+|-----------|------------|
+| [sizing / TDD / milestone concern] | [how it was resolved] |
 ```
 
-Include a **Completion** section at the end with the full test suite command and manual QA steps.
+Group tasks under **Subsystem Milestones** (from `design.md`), end each milestone
+with a Milestone Integration Verification task, and include a **Completion**
+section with the full test suite command and manual QA steps.
 
 ## Output Artifacts
 
@@ -201,9 +214,12 @@ Include a **Completion** section at the end with the full test suite command and
 - [ ] Every non-testable task is tagged `[NO-TEST]` with an inline reason and has no empirical check (else use `[VERIFY]` or `[WIRING]`)
 - [ ] `[TEST-RED:*]` always immediately precedes its paired `[IMPL]` within the same section
 - [ ] No task requires changing more than ~5 files
+- [ ] Tasks are grouped under Subsystem Milestones matching `design.md` boundaries
+- [ ] Every Subsystem Milestone ends with a Milestone Integration Verification task
 - [ ] Every success criterion from `proposal.md` is covered by at least one `[TEST-RED:*]` / GREEN pair
 - [ ] Every requirement from `specs/` (if it exists) maps to at least one `[TEST-RED:*]` task
 - [ ] A `Completion` section exists with the full test suite command
+- [ ] Challenge & Resolution Log reflects the grill (or records none ran)
 
 ## Common Mistakes
 
@@ -225,7 +241,12 @@ Include a **Completion** section at the end with the full test suite command and
 | `[REFACTOR]` task without a tests-PASS command | Refactor must preserve behavior; prove it with a passing test command on line 2. |
 | `[COMMIT]` message left stale after scope shifted in `apply` | Rewrite the `[COMMIT]` line in `tasks.md` before committing. The plan-time message is provisional. |
 
-## Handoff
+## Handoff / Gate
+
+1. **Grill first (strict):** the plan grill (`references/grills/plan-grill.md`) runs before drafting `tasks.md`.
+2. **Review after:** hand `tasks.md` to `skills/review` with the `plan` audit (`references/reviews/plan-audit.md`).
+3. The reviewer records the verdict via `sdlaic gate set --phase tasks --status <approved|failed> [--verdict ...]` — never inside the repo.
+4. On `approved`, route to `apply`. On `failed`, re-decompose here.
 
 Route to `apply` to execute the task list one task at a time. During `apply`, the agent must:
 1. Execute `[TEST-RED:*]` task — write the test, confirm the command fails
