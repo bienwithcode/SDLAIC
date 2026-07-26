@@ -134,11 +134,20 @@ func ensureProjectConfigured(cmd *cobra.Command, cwd string, in io.Reader, inter
 		return err
 	}
 
+	// A partially configured project — the shape a v1 config upgrade leaves —
+	// must be completed in place. Registering against cwd would add a second
+	// entry for a subdirectory, and longest-prefix lookup would then prefer it
+	// over the real project.
+	root := cwd
+	if project.Root != "" {
+		root = project.Root
+	}
+
 	changesDir := project.ChangesDir
 	workflowLevel := project.Workflow
 
 	if openChangesDir != "" {
-		changesDir, err = storage.NormalizeChangesDir(openChangesDir, cwd, resolveHome())
+		changesDir, err = storage.NormalizeChangesDir(openChangesDir, root, resolveHome())
 		if err != nil {
 			return fmt.Errorf("invalid --changes-dir flag: %w", err)
 		}
@@ -161,7 +170,7 @@ func ensureProjectConfigured(cmd *cobra.Command, cwd string, in io.Reader, inter
 	prompter := workspace.NewPrompter(in, out)
 
 	if needsChangesDir {
-		changesDir = storage.DefaultChangesDir(cwd)
+		changesDir = storage.DefaultChangesDir(root)
 		if interactive {
 			choice, err := prompter.Choice(
 				"Where should change artifacts live?", []string{"default", "custom"}, "default")
@@ -169,11 +178,11 @@ func ensureProjectConfigured(cmd *cobra.Command, cwd string, in io.Reader, inter
 				return fmt.Errorf("reading changes directory choice: %w", err)
 			}
 			if choice == "custom" {
-				entered, err := prompter.Line("Path", storage.DefaultChangesDir(cwd))
+				entered, err := prompter.Line("Path", storage.DefaultChangesDir(root))
 				if err != nil {
 					return fmt.Errorf("reading changes directory: %w", err)
 				}
-				changesDir, err = storage.NormalizeChangesDir(entered, cwd, resolveHome())
+				changesDir, err = storage.NormalizeChangesDir(entered, root, resolveHome())
 				if err != nil {
 					return err
 				}
@@ -193,11 +202,11 @@ func ensureProjectConfigured(cmd *cobra.Command, cwd string, in io.Reader, inter
 		}
 	}
 
-	if err := registerProjectEntry(cwd, changesDir, workflowLevel); err != nil {
+	if err := registerProjectEntry(root, changesDir, workflowLevel); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(out, "Configured SDLAIC project %s\n", cwd)
+	fmt.Fprintf(out, "Configured SDLAIC project %s\n", root)
 	fmt.Fprintf(out, "  Changes:  %s\n", changesDir)
 	fmt.Fprintf(out, "  Workflow: %s\n", workflowLevel)
 	return nil

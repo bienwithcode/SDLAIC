@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bienwithcode/SDLAIC/internal/config"
 	"github.com/bienwithcode/SDLAIC/internal/domain"
 )
 
@@ -168,4 +169,29 @@ func TestEnsureProjectConfigured_FlagsBeatPrompts(t *testing.T) {
 	entry := globalEntry(t, home, dir)
 	assert.Equal(t, external, entry.ChangesDir)
 	assert.Equal(t, domain.WorkflowFree, entry.Workflow)
+}
+
+func TestEnsureProjectConfigured_FromSubdirectoryUpdatesTheProjectNotTheSubdir(t *testing.T) {
+	resetOpenFlags()
+	_, dir := initFixtureUnregistered(t)
+
+	// A registered but partially configured entry — the shape a v1 config
+	// upgrade leaves behind: a path, but no changes dir and no workflow.
+	hash, err := workspaceHash(dir)
+	require.NoError(t, err)
+	require.NoError(t, config.UpdateProject(globalConfigPath(), hash, func(e *domain.ProjectEntry) {
+		e.Path = dir
+	}))
+
+	sub := filepath.Join(dir, "sub")
+	require.NoError(t, os.MkdirAll(sub, 0755))
+	chdirTo(t, sub)
+
+	require.NoError(t, ensureProjectConfigured(rootCmd, sub, strings.NewReader(""), false))
+
+	cfg, err := config.LoadGlobal(globalConfigPath())
+	require.NoError(t, err)
+	require.Len(t, cfg.Projects, 1, "configuring from a subdirectory must not register the subdirectory as a second project")
+	assert.Equal(t, dir, cfg.Projects[hash].Path)
+	assert.Equal(t, filepath.Join(dir, ".sdlaic", "changes"), cfg.Projects[hash].ChangesDir)
 }
