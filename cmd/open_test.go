@@ -14,7 +14,7 @@ import (
 
 func TestOpenClaude_PrintOnly_AlreadyInitialized(t *testing.T) {
 	resetOpenFlags()
-	dir := TempWorkspace(t, domain.StorageModeLocal)
+	dir := TempWorkspace(t)
 	oldWd, _ := os.Getwd()
 	require.NoError(t, os.Chdir(dir))
 	defer os.Chdir(oldWd)
@@ -99,7 +99,7 @@ func TestOpenClaude_PrintOnly_AutoInitOverrides(t *testing.T) {
 
 func TestOpenClaude_PrintOnly_MarketplaceOverride(t *testing.T) {
 	resetOpenFlags()
-	dir := TempWorkspace(t, domain.StorageModeLocal)
+	dir := TempWorkspace(t)
 	oldWd, _ := os.Getwd()
 	require.NoError(t, os.Chdir(dir))
 	defer os.Chdir(oldWd)

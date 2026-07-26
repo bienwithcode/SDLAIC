@@ -9,51 +9,48 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bienwithcode/SDLAIC/internal/config"
 	"github.com/bienwithcode/SDLAIC/internal/domain"
+	"github.com/bienwithcode/SDLAIC/internal/storage"
 )
 
 // --- Testutil helpers ---
 
-// TempWorkspace creates a temp directory with a valid .sdlaicrc and change directories.
-func TempWorkspace(t *testing.T, storage domain.StorageMode) string {
+// TempWorkspace creates a project directory registered in a temp global config,
+// and points the CLI's home at that temp directory for the duration of the test
+// so nothing touches the developer's real ~/.sdlaic.
+func TempWorkspace(t *testing.T) string {
 	t.Helper()
+	home := t.TempDir()
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".sdlaicrc")
 
-	cfg := domain.NewLocalConfig(storage, domain.WorkflowStrict, "testhash123")
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(cfgPath, data, 0644))
+	oldHome := homeFlag
+	homeFlag = home
+	t.Cleanup(func() { homeFlag = oldHome })
 
-	// Create changes directory based on storage mode
-	var changesDir string
-	switch storage {
-	case domain.StorageModeLocal:
-		changesDir = filepath.Join(dir, ".sdlaic", "changes")
-	case domain.StorageModeIgnored:
-		changesDir = filepath.Join(dir, ".sdlaic", "changes")
-	case domain.StorageModeGlobal:
-		changesDir = filepath.Join(dir, "changes")
-	}
+	changesDir := storage.DefaultChangesDir(dir)
 	require.NoError(t, os.MkdirAll(changesDir, 0755))
+
+	hash, err := workspaceHash(dir)
+	require.NoError(t, err)
+	require.NoError(t, config.UpdateProject(globalConfigPath(), hash, func(e *domain.ProjectEntry) {
+		e.Path = dir
+		e.ChangesDir = changesDir
+		e.Workflow = domain.WorkflowStrict
+	}))
+
+	// TEMPORARY: also write a .sdlaicrc so commands that have not been migrated
+	// yet still resolve. Removed in T17 with the production fallback.
+	local := domain.NewLocalConfig(domain.StorageModeLocal, domain.WorkflowStrict, hash)
+	require.NoError(t, config.SaveLocal(local, filepath.Join(dir, ".sdlaicrc")))
 
 	return dir
 }
 
 // TempChange creates a change directory with optional artifact files.
-func TempChange(t *testing.T, workspaceDir string, storage domain.StorageMode, name string, artifacts map[string]string) string {
+func TempChange(t *testing.T, workspaceDir string, name string, artifacts map[string]string) string {
 	t.Helper()
-	var changesDir string
-	switch storage {
-	case domain.StorageModeLocal:
-		changesDir = filepath.Join(workspaceDir, ".sdlaic", "changes")
-	case domain.StorageModeIgnored:
-		changesDir = filepath.Join(workspaceDir, ".sdlaic", "changes")
-	default:
-		changesDir = filepath.Join(workspaceDir, "changes")
-	}
-
-	changeDir := filepath.Join(changesDir, name)
+	changeDir := filepath.Join(storage.DefaultChangesDir(workspaceDir), name)
 	require.NoError(t, os.MkdirAll(changeDir, 0755))
 
 	for fileName, content := range artifacts {
@@ -99,7 +96,7 @@ func TestResolveChangeName_EmptyFlag_NoWorkspace(t *testing.T) {
 }
 
 func TestResolveChangeName_EmptyFlag_WithActiveChange(t *testing.T) {
-	dir := TempWorkspace(t, domain.StorageModeLocal)
+	dir := TempWorkspace(t)
 
 	// Set active change in config
 	cfgPath := filepath.Join(dir, ".sdlaicrc")
