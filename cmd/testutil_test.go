@@ -38,11 +38,6 @@ func TempWorkspace(t *testing.T) string {
 		e.Workflow = domain.WorkflowStrict
 	}))
 
-	// TEMPORARY: also write a .sdlaicrc so commands that have not been migrated
-	// yet still resolve. Removed in T17 with the production fallback.
-	local := domain.NewLocalConfig(domain.StorageModeLocal, domain.WorkflowStrict, hash)
-	require.NoError(t, config.SaveLocal(local, filepath.Join(dir, ".sdlaicrc")))
-
 	return dir
 }
 

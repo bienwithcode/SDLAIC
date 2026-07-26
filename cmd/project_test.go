@@ -43,12 +43,6 @@ func registerGlobal(t *testing.T, root string, entry domain.ProjectEntry) string
 	return hash
 }
 
-// writeLocalConfig writes a legacy .sdlaicrc into root.
-func writeLocalConfig(t *testing.T, root string, cfg domain.LocalConfig) {
-	t.Helper()
-	require.NoError(t, config.SaveLocal(cfg, filepath.Join(root, ".sdlaicrc")))
-}
-
 func TestResolveProject_ReadsGlobalEntry(t *testing.T) {
 	_, root := projectFixture(t)
 	registerGlobal(t, root, domain.ProjectEntry{
@@ -63,32 +57,6 @@ func TestResolveProject_ReadsGlobalEntry(t *testing.T) {
 	assert.Equal(t, "/work/openspec/changes", ctx.ChangesDir)
 	assert.Equal(t, domain.WorkflowLight, ctx.Workflow)
 	assert.Equal(t, "SDL-7", ctx.ActiveChange)
-	assert.False(t, ctx.fromLocalConfig)
-}
-
-func TestResolveProject_GlobalEntryWinsOverLocalConfig(t *testing.T) {
-	_, root := projectFixture(t)
-	writeLocalConfig(t, root, domain.NewLocalConfig(domain.StorageModeLocal, domain.WorkflowStrict, "legacyhash"))
-	registerGlobal(t, root, domain.ProjectEntry{ChangesDir: "/work/openspec/changes"})
-
-	ctx, err := resolveProject()
-
-	require.NoError(t, err)
-	assert.Equal(t, "/work/openspec/changes", ctx.ChangesDir, "the global entry takes precedence over .sdlaicrc")
-	assert.False(t, ctx.fromLocalConfig)
-}
-
-func TestResolveProject_FallsBackToLocalConfig(t *testing.T) {
-	_, root := projectFixture(t)
-	writeLocalConfig(t, root, domain.NewLocalConfig(domain.StorageModeLocal, domain.WorkflowFree, "legacyhash"))
-
-	ctx, err := resolveProject()
-
-	require.NoError(t, err)
-	assert.True(t, ctx.fromLocalConfig, "an unmigrated project still resolves via .sdlaicrc")
-	assert.Equal(t, filepath.Join(ctx.Root, ".sdlaic", "changes"), ctx.ChangesDir)
-	assert.Equal(t, domain.WorkflowFree, ctx.Workflow)
-	assert.Equal(t, "legacyhash", ctx.Hash)
 }
 
 func TestResolveProject_UnregisteredDirectoryIsNotFound(t *testing.T) {
@@ -146,17 +114,4 @@ func TestSetActiveChange_WritesToGlobalEntry(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "SDL-42", cfg.Projects[hash].ActiveChange)
 	assert.Equal(t, "/work/changes", cfg.Projects[hash].ChangesDir, "unrelated fields survive the write")
-}
-
-func TestSetActiveChange_WritesToLocalConfigWhenUnmigrated(t *testing.T) {
-	_, root := projectFixture(t)
-	writeLocalConfig(t, root, domain.NewLocalConfig(domain.StorageModeLocal, domain.WorkflowStrict, "legacyhash"))
-
-	ctx, err := resolveProject()
-	require.NoError(t, err)
-	require.NoError(t, ctx.setActiveChange("SDL-42"))
-
-	local, err := config.LoadLocal(filepath.Join(root, ".sdlaicrc"))
-	require.NoError(t, err)
-	assert.Equal(t, "SDL-42", local.ActiveChange)
 }

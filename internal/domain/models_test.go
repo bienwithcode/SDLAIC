@@ -141,15 +141,6 @@ func TestOrderedArtifactTypes(t *testing.T) {
 	assert.NotContains(t, types, ArtifactType("rationale"))
 }
 
-func TestNewLocalConfig(t *testing.T) {
-	cfg := NewLocalConfig(StorageModeIgnored, WorkflowLight, "abc123")
-	assert.Equal(t, 1, cfg.Version)
-	assert.Equal(t, StorageModeIgnored, cfg.Storage)
-	assert.Equal(t, WorkflowLight, cfg.Workflow)
-	assert.Equal(t, "abc123", cfg.ProjectHash)
-	assert.Empty(t, cfg.ActiveChange)
-}
-
 func TestNewGlobalConfig(t *testing.T) {
 	cfg := NewGlobalConfig()
 	assert.Equal(t, 2, cfg.Version)

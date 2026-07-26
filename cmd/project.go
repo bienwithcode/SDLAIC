@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/bienwithcode/SDLAIC/internal/config"
 	"github.com/bienwithcode/SDLAIC/internal/domain"
@@ -13,27 +11,17 @@ import (
 )
 
 // projectContext is everything a command needs to know about the project it is
-// running in. It is the single place state is read from, so commands never care
-// whether that state came from the global config or the legacy local file.
+// running in. It is the single place state is read from.
 type projectContext struct {
 	Root         string
 	Hash         string
 	ChangesDir   string
 	Workflow     domain.WorkflowLevel
 	ActiveChange string
-
-	// fromLocalConfig marks a project that has not been migrated yet and is
-	// still being served from .sdlaicrc.
-	// TEMPORARY: removed in T17 along with the fallback itself.
-	fromLocalConfig bool
 }
 
-// resolveProject determines the project containing the current directory.
-//
-// The global config is authoritative. A project with no entry there falls back
-// to the legacy .sdlaicrc so the binary keeps working while commands are
-// migrated one at a time.
-// TEMPORARY: the fallback is removed in T17.
+// resolveProject determines the project containing the current directory,
+// reading its state from ~/.sdlaic/config.json.
 func resolveProject() (projectContext, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -46,52 +34,20 @@ func resolveProject() (projectContext, error) {
 	}
 
 	hash, entry, err := workspace.Lookup(cfg, cwd)
-	if err == nil {
-		workflowLevel := entry.Workflow
-		if workflowLevel == "" {
-			workflowLevel = cfg.DefaultWorkflow
-		}
-		return projectContext{
-			Root:         entry.Path,
-			Hash:         hash,
-			ChangesDir:   entry.ChangesDir,
-			Workflow:     workflowLevel,
-			ActiveChange: entry.ActiveChange,
-		}, nil
-	}
-	if !errors.Is(err, domain.ErrWorkspaceNotFound) {
-		return projectContext{}, err
-	}
-
-	return resolveProjectFromLocalConfig(cwd)
-}
-
-// resolveProjectFromLocalConfig serves a project that still only has a
-// .sdlaicrc, deriving ChangesDir from its storage mode.
-// TEMPORARY: removed in T17.
-func resolveProjectFromLocalConfig(cwd string) (projectContext, error) {
-	root, err := workspace.FindWorkspace(cwd)
 	if err != nil {
 		return projectContext{}, err
 	}
 
-	local, err := config.LoadLocal(filepath.Join(root, ".sdlaicrc"))
-	if err != nil {
-		return projectContext{}, fmt.Errorf("loading local config: %w", err)
+	workflowLevel := entry.Workflow
+	if workflowLevel == "" {
+		workflowLevel = cfg.DefaultWorkflow
 	}
-
-	changesDir, err := storage.ChangesBasePath(local.Storage, root, resolveHome())
-	if err != nil {
-		return projectContext{}, err
-	}
-
 	return projectContext{
-		Root:            root,
-		Hash:            local.ProjectHash,
-		ChangesDir:      changesDir,
-		Workflow:        local.Workflow,
-		ActiveChange:    local.ActiveChange,
-		fromLocalConfig: true,
+		Root:         entry.Path,
+		Hash:         hash,
+		ChangesDir:   entry.ChangesDir,
+		Workflow:     workflowLevel,
+		ActiveChange: entry.ActiveChange,
 	}, nil
 }
 
@@ -121,10 +77,6 @@ func (p projectContext) resolveChange(flag string) (string, error) {
 // setActiveChange persists the active change, writing back to whichever source
 // this context was resolved from. Pass an empty string to clear it.
 func (p projectContext) setActiveChange(changeName string) error {
-	if p.fromLocalConfig {
-		// TEMPORARY: removed in T17.
-		return config.SetActiveChange(filepath.Join(p.Root, ".sdlaicrc"), changeName)
-	}
 	return config.UpdateProject(globalConfigPath(), p.Hash, func(e *domain.ProjectEntry) {
 		e.ActiveChange = changeName
 	})
@@ -160,16 +112,6 @@ func registerProjectEntry(cwd string, changesDir string, workflowLevel domain.Wo
 		e.Workflow = workflowLevel
 	}); err != nil {
 		return fmt.Errorf("registering project: %w", err)
-	}
-
-	// TEMPORARY: commands not yet migrated still read .sdlaicrc. Only written for
-	// the in-project default, so an external changes dir stays zero-footprint.
-	// Removed in T17.
-	if changesDir == storage.DefaultChangesDir(cwd) {
-		local := domain.NewLocalConfig(domain.StorageModeLocal, workflowLevel, hash)
-		if err := config.SaveLocal(local, filepath.Join(cwd, ".sdlaicrc")); err != nil {
-			return fmt.Errorf("writing legacy local config: %w", err)
-		}
 	}
 	return nil
 }

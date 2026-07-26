@@ -9,14 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/bienwithcode/SDLAIC/internal/config"
 	"github.com/bienwithcode/SDLAIC/internal/domain"
-	"github.com/bienwithcode/SDLAIC/internal/workspace"
 )
-
-// workspaceRoot is the discovered workspace root directory.
-// Set by PersistentPreRun when a command is executed.
-var workspaceRoot string
 
 // rootCmd is the base command for the SDLAIC CLI.
 var rootCmd = &cobra.Command{
@@ -93,46 +87,6 @@ func resolveChangeName(flag string) (string, error) {
 		return "", domain.ErrNoActiveChange
 	}
 	return project.resolveChange("")
-}
-
-// discoverWorkspace sets workspaceRoot by walking up from cwd.
-func discoverWorkspace() {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return
-	}
-	root, err := workspace.FindWorkspace(cwd)
-	if err != nil {
-		workspaceRoot = ""
-		return
-	}
-	workspaceRoot = root
-}
-
-// loadLocalConfig loads the .sdlaicrc from the workspace root.
-func loadLocalConfig() (domain.LocalConfig, error) {
-	if workspaceRoot == "" {
-		return domain.LocalConfig{}, domain.ErrWorkspaceNotFound
-	}
-	return config.LoadLocal(workspaceRoot + "/.sdlaicrc")
-}
-
-// saveLocalConfig saves the .sdlaicrc to the workspace root.
-func saveLocalConfig(cfg domain.LocalConfig) error {
-	if workspaceRoot == "" {
-		return domain.ErrWorkspaceNotFound
-	}
-	return config.SaveLocal(cfg, workspaceRoot+"/.sdlaicrc")
-}
-
-// loadGlobalConfig loads a global config from the given path.
-func loadGlobalConfig(path string) (domain.GlobalConfig, error) {
-	return config.LoadGlobal(path)
-}
-
-// saveGlobalConfig saves a global config to the given path.
-func saveGlobalConfig(path string, cfg domain.GlobalConfig) error {
-	return config.SaveGlobal(cfg, path)
 }
 
 // printJSON outputs a value as formatted JSON to stdout.

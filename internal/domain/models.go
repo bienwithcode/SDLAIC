@@ -160,25 +160,6 @@ type ChangeStatus struct {
 	Artifacts    map[string]ArtifactStatus `json:"artifacts"`
 }
 
-// LocalConfig represents the .sdlaicrc file in a project root.
-type LocalConfig struct {
-	Version      int           `json:"version"`
-	Storage      StorageMode   `json:"storage"`
-	Workflow     WorkflowLevel `json:"workflow"`
-	ActiveChange string        `json:"active_change,omitempty"`
-	ProjectHash  string        `json:"project_hash"`
-}
-
-// NewLocalConfig returns a LocalConfig with defaults applied.
-func NewLocalConfig(storage StorageMode, workflow WorkflowLevel, projectHash string) LocalConfig {
-	return LocalConfig{
-		Version:     1,
-		Storage:     storage,
-		Workflow:    workflow,
-		ProjectHash: projectHash,
-	}
-}
-
 // ProjectEntry stores all per-project state in the global config, keyed by the
 // project hash. ChangesDir is an absolute path; empty means the project has not
 // been configured yet and the CLI should prompt for one.

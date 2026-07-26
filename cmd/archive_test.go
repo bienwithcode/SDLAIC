@@ -48,10 +48,7 @@ func TestArchive_ClearsActive(t *testing.T) {
 	_, err = ExecuteCommand(rootCmd, "archive", "ACTIVE-ARCHIVE")
 	require.NoError(t, err)
 
-	// Active change should be cleared
-	data, err := os.ReadFile(filepath.Join(dir, ".sdlaicrc"))
-	require.NoError(t, err)
-	assert.NotContains(t, string(data), "ACTIVE-ARCHIVE")
+	assert.Empty(t, activeChangeOf(t, dir), "archiving the active change clears it")
 }
 
 func TestArchive_NotFound(t *testing.T) {

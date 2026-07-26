@@ -137,14 +137,15 @@ func TestInit_RejectsEmptyChangesDir(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// TEMPORARY: until T17, the default in-project layout still writes a .sdlaicrc
-// so commands that have not been migrated keep resolving. An external changes
-// dir deliberately writes nothing into the project.
-func TestInit_DefaultLayoutStillWritesLegacyLocalConfig(t *testing.T) {
+func TestInit_WritesNothingIntoTheProjectButTheChangesDir(t *testing.T) {
 	home, dir := initFixture(t)
 
 	_, err := ExecuteCommand(rootCmd, "init", "--home", home)
 	require.NoError(t, err)
 
-	assert.FileExists(t, filepath.Join(dir, ".sdlaicrc"))
+	assert.NoFileExists(t, filepath.Join(dir, ".sdlaicrc"), "no project-local state file survives")
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, ".sdlaic", entries[0].Name())
 }
