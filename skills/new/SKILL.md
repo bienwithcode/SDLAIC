@@ -274,7 +274,7 @@ If no Jira key was provided and the user gave a description, save that instead u
 Stage and commit the SDLAIC change directory inside the **target project's repository**:
 
 ```bash
-git -C projects/<project> add .sdlaic/changes/<change-name>/
+git -C projects/<project> add "$(sdlaic path change --change <change-name>)"
 git -C projects/<project> commit -m "<prefix>: new context for <change-name>"
 ```
 
@@ -303,8 +303,8 @@ to a specific (Actor, Use Case) when that section is populated.
 
 ## Output Artifacts
 
-- `.sdlaic/changes/<change-name>/` — change directory created by SDLAIC
-- `.sdlaic/changes/<change-name>/context.md` — Jira + research context (always written; contains Gap Manifest when quality is MEDIUM/LOW + Option C, and `## Actors & Use Cases` with populated tables or `N/A` for trivial changes)
+- `$(sdlaic path change --change <change-name>)/` — change directory created by SDLAIC
+- `$(sdlaic path change --change <change-name>)/context.md` — Jira + research context (always written; contains Gap Manifest when quality is MEDIUM/LOW + Option C, and `## Actors & Use Cases` with populated tables or `N/A` for trivial changes)
 
 ## Verification
 
@@ -322,7 +322,7 @@ to a specific (Actor, Use Case) when that section is populated.
 - [ ] Every use case has Happy path + ≥1 Alternate or Edge case (no happy-path-only rows)
 - [ ] Caps respected: ≤ 6 actors, ≤ 3 primary use cases per actor
 - [ ] If `## Gap Manifest` is populated, every gap is cross-linked to ≥1 actor/use case in `## Gap Manifest Cross-link`
-- [ ] Initialized artifacts committed to target project repo (`.sdlaic/changes/<change-name>/`)
+- [ ] Initialized artifacts committed to the repo holding the changes directory (`sdlaic path change --change <change-name>`)
 
 ## Common Mistakes
 

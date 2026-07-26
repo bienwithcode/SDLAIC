@@ -41,7 +41,7 @@ valid, explicit outcome — not a skip.
 ### Step 3: Write `design.md`
 
 Request the template guidance (`instructions design`), then write to
-`.sdlaic/changes/<name>/design.md`:
+`$(sdlaic path change --change <name>)/design.md`:
 
 ```markdown
 # Design: <change-name>
@@ -88,7 +88,7 @@ Do not advance to planning yourself.
 
 ## Output Artifacts
 
-- `.sdlaic/changes/<name>/design.md` — architecture satisfying proposal + spec,
+- `$(sdlaic path change --change <name>)/design.md` — architecture satisfying proposal + spec,
   with explicit input-boundary, subsystem-boundary, and reuse sections.
 
 ## Verification

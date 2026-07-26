@@ -26,7 +26,7 @@ Before writing prose, enumerate the boundary. Every item a reader might assume i
 
 ### Step 3: Write `proposal.md`
 
-Request the template guidance, then write to `.sdlaic/changes/<name>/proposal.md`:
+Request the template guidance, then write to `$(sdlaic path change --change <name>)/proposal.md`:
 
 ```markdown
 # Proposal: <change-name>
@@ -70,7 +70,7 @@ Do not advance to the spec phase yourself. Emit a summary and hand off (see Hand
 
 ## Output Artifacts
 
-- `.sdlaic/changes/<name>/proposal.md` — scope contract with a mandatory IN/OUT-OF-SCOPE table and Challenge & Resolution Log.
+- `$(sdlaic path change --change <name>)/proposal.md` — scope contract with a mandatory IN/OUT-OF-SCOPE table and Challenge & Resolution Log.
 
 ## Verification
 

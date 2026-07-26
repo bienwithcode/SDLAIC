@@ -34,7 +34,7 @@ scenario or be explicitly declared out of behavioral scope.
 ### Step 3: Write `specs/<capability>/spec.md`
 
 Request the template guidance (`instructions spec`), then write to
-`.sdlaic/changes/<name>/specs/<capability-name>/spec.md`:
+`$(sdlaic path change --change <name>)/specs/<capability-name>/spec.md`:
 
 ```markdown
 # <capability-name> (delta)
@@ -74,7 +74,7 @@ Do not advance to design yourself.
 
 ## Output Artifacts
 
-- `.sdlaic/changes/<name>/specs/<capability>/spec.md` — formal GIVEN/WHEN/THEN
+- `$(sdlaic path change --change <name>)/specs/<capability>/spec.md` — formal GIVEN/WHEN/THEN
   requirements, one directory per capability.
 
 ## Verification
