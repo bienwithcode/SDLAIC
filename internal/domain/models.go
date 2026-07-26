@@ -417,7 +417,7 @@ type GatesFile struct {
 // --- Sentinel Errors ---
 
 var (
-	ErrWorkspaceNotFound   = errors.New("no .sdlaicrc found in parent directories")
+	ErrWorkspaceNotFound   = errors.New("no SDLAIC project registered for this directory; run 'sdlaic init'")
 	ErrWorkspaceExists     = errors.New("workspace already initialized")
 	ErrChangeNotFound      = errors.New("change not found")
 	ErrChangeAlreadyExists = errors.New("change already exists")
