@@ -94,11 +94,11 @@ Do not advance to design yourself.
 | Describing HOW (functions, tables) | Specs describe observable behavior; architecture is `design.md`. |
 | Specifying OUT-OF-SCOPE behavior | Honor the proposal boundary strictly. |
 | One giant spec for many capabilities | One `specs/<capability>/spec.md` per capability. |
-| Advancing to design without the gate | The spec gate must be `approved`/`skipped` first. |
+| Advancing to design without the gate | Every `spec:<capability>` gate must be `approved`/`skipped` first. |
 
 ## Handoff / Gate
 
 1. **Grill first (strict):** the spec grill (`references/grills/spec-grill.md`) runs before drafting.
 2. **Review after:** hand the drafted spec to `skills/review` with the `spec` audit (`references/reviews/spec-audit.md`).
-3. The reviewer records the verdict via `sdlaic gate set --phase spec --status <approved|failed> [--verdict ...]`.
+3. The reviewer records the verdict **per capability** via `sdlaic gate set --phase spec:<capability> --status <approved|failed> [--verdict ...]` — one `spec:<capability>` gate per `specs/<capability>/` directory.
 4. On `approved`, the enforcer advances to Phase 2 (`skills/design`). On `failed`, re-draft here.

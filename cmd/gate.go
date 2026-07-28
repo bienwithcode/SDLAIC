@@ -9,6 +9,7 @@ import (
 
 	"github.com/bienwithcode/SDLAIC/internal/domain"
 	"github.com/bienwithcode/SDLAIC/internal/gatestate"
+	"github.com/bienwithcode/SDLAIC/internal/state"
 )
 
 var (
@@ -55,12 +56,12 @@ func init() {
 
 	gateStatusCmd.Flags().BoolVar(&gateJSON, "json", false, "Output as JSON")
 
-	gateSetCmd.Flags().StringVar(&gateSetPhase, "phase", "", "Gate to update: proposal|spec|design|tasks")
+	gateSetCmd.Flags().StringVar(&gateSetPhase, "phase", "", "Gate to update: proposal|spec:<capability>|design|tasks")
 	gateSetCmd.Flags().StringVar(&gateSetStatus, "status", "", "New status: pending|grilling|grilled|reviewing|approved|failed|skipped")
 	gateSetCmd.Flags().StringVar(&gateSetVerdict, "verdict", "", "Optional review verdict: APPROVE|REQUEST_CHANGES|REJECT|PENDING")
 	gateSetCmd.Flags().BoolVar(&gateSetAttempt, "attempt", false, "Increment the gate's attempt counter")
 
-	gateReentryCmd.Flags().StringVar(&gateReentryFrom, "from", "", "Gate to re-enter at: proposal|spec|design|tasks")
+	gateReentryCmd.Flags().StringVar(&gateReentryFrom, "from", "", "Gate to re-enter at: proposal|spec:<capability>|design|tasks")
 	gateReentryCmd.Flags().StringVar(&gateReentryWhy, "reason", "", "Why the pipeline is being re-entered")
 }
 
@@ -78,6 +79,16 @@ func gateStore() (*gatestate.Store, projectContext, string, error) {
 	}
 
 	store := gatestate.NewWithHome(resolveHome(), project.Hash, changeName)
+
+	// Enable per-capability spec gates when the change has a specs/ tree. Best
+	// effort: if the path or directory listing fails, fall back to the legacy
+	// single-spec pipeline rather than blocking gate inspection.
+	if changePath, err := project.changePath(changeName); err == nil {
+		if caps, err := state.ListCapabilities(changePath); err == nil {
+			store.SetCapabilities(caps)
+		}
+	}
+
 	return store, project, changeName, nil
 }
 
@@ -103,15 +114,20 @@ func runGateStatus(cmd *cobra.Command, args []string) error {
 }
 
 func runGateSet(cmd *cobra.Command, args []string) error {
+	store, project, changeName, err := gateStore()
+	if err != nil {
+		return err
+	}
+
 	validPhase := false
-	for _, k := range gatestate.GateKeys() {
+	for _, k := range store.GateKeys() {
 		if k == gateSetPhase {
 			validPhase = true
 			break
 		}
 	}
 	if !validPhase {
-		return fmt.Errorf("unknown gate %q; valid: %v", gateSetPhase, gatestate.GateKeys())
+		return gatestate.UnknownGateErr(gateSetPhase, store.GateKeys())
 	}
 
 	status, err := domain.ParseGateStatus(gateSetStatus)
@@ -125,11 +141,6 @@ func runGateSet(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		verdict = &v
-	}
-
-	store, project, changeName, err := gateStore()
-	if err != nil {
-		return err
 	}
 
 	// Validate that the artifact change directory exists before allowing state init
@@ -180,13 +191,13 @@ func printGateHuman(cmd *cobra.Command, gf domain.GatesFile, workflow domain.Wor
 	fmt.Fprintf(cmd.OutOrStdout(), "Workflow:  %s\n", workflow)
 	fmt.Fprintf(cmd.OutOrStdout(), "Pipeline:  %s\n", gf.PipelineState)
 	fmt.Fprintf(cmd.OutOrStdout(), "\nGates:\n")
-	for _, key := range gatestate.GateKeys() {
+	for _, key := range gatestate.SortedGateKeys(gf.Gates) {
 		g := gf.Gates[key]
 		marker := " "
 		if g.IsPassingFor(workflow) {
 			marker = "✓"
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %-9s %-10s (attempts %d)\n", marker, key, g.Status, g.Attempts)
+		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %-20s %-10s (attempts %d)\n", marker, key, g.Status, g.Attempts)
 	}
 	return nil
 }

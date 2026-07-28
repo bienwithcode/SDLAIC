@@ -231,7 +231,7 @@ func TestAnalyzeArtifacts_AllPresent(t *testing.T) {
 
 	artifacts, err := AnalyzeArtifacts(changeDir)
 	require.NoError(t, err)
-	assert.Len(t, artifacts, 5)
+	assert.Len(t, artifacts, 6) // 5 artifact types + the spec:core detail entry
 
 	for _, at := range domain.OrderedArtifactTypes() {
 		status, ok := artifacts[string(at)]
@@ -239,6 +239,38 @@ func TestAnalyzeArtifacts_AllPresent(t *testing.T) {
 		assert.True(t, status.Exists, "%s should exist", at)
 		assert.True(t, status.Populated, "%s should be populated", at)
 	}
+	// Per-capability detail entry mirrors the aggregate.
+	assert.True(t, artifacts["spec:core"].Exists, "spec:core detail should exist")
+	assert.True(t, artifacts["spec:core"].Populated, "spec:core detail should be populated")
+}
+
+func TestAnalyzeArtifacts_PerCapabilityAggregateIsAND(t *testing.T) {
+	// Two capabilities, one populated and one empty: the aggregate "spec" must
+	// read as NOT populated (AND of all capabilities), and the empty capability's
+	// detail entry must read as not populated. This is the analyzer-side fix for
+	// the OR-collapse that previously masked an empty sibling.
+	changeDir := setupChangeDir(t, map[string]string{
+		"context.md":         "# Context\n\nReal content.",
+		"proposal.md":        "# Proposal\n\nReal proposal.",
+		"specs/auth/spec.md": "# Auth Spec\n\nReal requirements.",
+		// specs/billing/ exists as a directory but its spec.md is empty.
+	})
+	require.NoError(t, os.MkdirAll(filepath.Join(changeDir, "specs", "billing"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "specs", "billing", "spec.md"), []byte("   \n"), 0644))
+
+	artifacts, err := AnalyzeArtifacts(changeDir)
+	require.NoError(t, err)
+
+	assert.True(t, artifacts["spec:auth"].Populated, "populated capability reads populated")
+	assert.False(t, artifacts["spec:billing"].Populated, "empty capability reads not populated")
+	assert.False(t, artifacts["spec"].Populated, "aggregate must be the AND of capabilities, not OR")
+	assert.True(t, artifacts["spec"].Exists, "aggregate exists when any capability dir is present")
+
+	// Because the aggregate spec is not fully populated, the phase must NOT reach
+	// SPECIFIED.
+	phase, err := AnalyzePhase(changeDir)
+	require.NoError(t, err)
+	assert.Equal(t, domain.PhaseProposed, phase, "a half-written spec tier must not advance to SPECIFIED")
 }
 
 func TestAnalyzeArtifacts_NonePresent(t *testing.T) {

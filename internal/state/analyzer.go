@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/bienwithcode/SDLAIC/internal/domain"
@@ -109,14 +110,34 @@ func AnalyzeArtifacts(changeDir string) (map[string]domain.ArtifactStatus, error
 
 		if at == domain.ArtifactSpec {
 			// The spec artifact is directory-based: specs/<capability>/spec.md.
-			specsDir := filepath.Join(changeDir, "specs")
-			combinedContent, exists, err := readSpecsDir(specsDir)
-			if err == nil && exists {
-				status.Exists = true
-				status.Populated = IsPopulated(combinedContent)
-				status.Valid = status.Populated
+			// Emit one entry per capability plus an aggregate "spec" entry. The
+			// aggregate's Populated is the AND of all capabilities (so a
+			// half-written spec tier does not read as populated); it keeps
+			// isPhaseComplete and the status JSON contract working, while the
+			// spec:<capability> entries carry the per-capability detail.
+			caps, _ := ListCapabilities(changeDir)
+			if len(caps) == 0 {
+				result[string(at)] = domain.ArtifactStatus{}
+				continue
 			}
-			result[string(at)] = status
+			allPopulated := true
+			var anyExists bool
+			for _, c := range caps {
+				cs := domain.ArtifactStatus{}
+				if data, err := os.ReadFile(filepath.Join(changeDir, "specs", c, "spec.md")); err == nil {
+					cs.Exists = true
+					anyExists = true
+					cs.Populated = IsPopulated(string(data))
+					cs.Valid = cs.Populated
+					if !cs.Populated {
+						allPopulated = false
+					}
+				} else {
+					allPopulated = false
+				}
+				result["spec:"+c] = cs
+			}
+			result[string(at)] = domain.ArtifactStatus{Exists: anyExists, Populated: allPopulated, Valid: allPopulated}
 			continue
 		}
 
@@ -180,44 +201,6 @@ func readFileContent(path string) (string, error) {
 	return string(data), nil
 }
 
-// readSpecsDir recursively finds and reads the per-capability spec files in the
-// specs directory. Only files named spec.md count (specs/<capability>/spec.md) —
-// unrelated markdown (README.md, notes.md) must not satisfy the spec artifact.
-// Returns combined content of all spec.md files found, or error.
-func readSpecsDir(specsDir string) (string, bool, error) {
-	info, err := os.Stat(specsDir)
-	if err != nil {
-		return "", false, nil // directory doesn't exist
-	}
-	if !info.IsDir() {
-		return "", false, nil // specs is not a directory
-	}
-
-	var combined strings.Builder
-	hasFiles := false
-
-	err = filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() && IsCapabilitySpec(specsDir, path) {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			combined.Write(data)
-			combined.WriteString("\n")
-			hasFiles = true
-		}
-		return nil
-	})
-	if err != nil {
-		return "", false, err
-	}
-
-	return combined.String(), hasFiles, nil
-}
-
 // IsCapabilitySpec reports whether path is a spec leaf nested under exactly one
 // capability directory beneath specsDir — i.e. specs/<capability>/spec.md. It
 // rejects specs/spec.md (no capability dir) and specs/a/b/spec.md (nested too
@@ -229,4 +212,31 @@ func IsCapabilitySpec(specsDir, path string) bool {
 	}
 	parts := strings.Split(filepath.ToSlash(rel), "/")
 	return len(parts) == 2 && parts[0] != "" && strings.EqualFold(parts[1], "spec.md")
+}
+
+// ListCapabilities returns the sorted names of the immediate capability
+// directories under <changePath>/specs — i.e. one level deep, specs/<capability>/.
+// It returns an empty slice (no error) when specs/ does not exist or is not a
+// directory. Files placed directly under specs/ (e.g. a malformed specs/spec.md)
+// are not capability directories and are ignored, matching IsCapabilitySpec.
+//
+// Use this to enumerate capabilities anywhere the spec artifact must be treated
+// per-capability (gate keys, validation, status fan-out) rather than collapsed
+// into one blob.
+func ListCapabilities(changePath string) ([]string, error) {
+	entries, err := os.ReadDir(filepath.Join(changePath, "specs"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var caps []string
+	for _, e := range entries {
+		if e.IsDir() {
+			caps = append(caps, e.Name())
+		}
+	}
+	sort.Strings(caps)
+	return caps, nil
 }

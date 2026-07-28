@@ -62,7 +62,7 @@ new ─► context.md
         │  ┌─────────────── one micro-loop per phase ───────────────┐
         ▼  │ grill (challenge) → draft (write) → review (audit) → gate │
   proposal │ ── proposal.md ───────────────────────────► gate:proposal ✓
-  spec     │ ── specs/<capability>/spec.md ─────────────► gate:spec ✓
+  spec     │ ── specs/<capability>/spec.md ──────► gate:spec:<capability> ✓ (per cap)
   design   │ ── design.md ─────────────────────────────► gate:design ✓
   tasks    │ ── tasks.md ──────────────────────────────► gate:tasks ✓
         ▼  └───────────────────────────────────────────────────────┘
@@ -138,7 +138,7 @@ sdlaic validate <name> --strict       # Strict: all artifacts must exist
 # Gate state (verdicts stored in ~/.sdlaic/state/, never in your repo)
 sdlaic gate status -c <name>          # Show gate state for each phase
 sdlaic gate status -c <name> --json   # Machine-readable gate state
-sdlaic gate set -c <name> --phase <proposal|spec|design|tasks> \
+sdlaic gate set -c <name> --phase <proposal|spec:<capability>|design|tasks> \
     --status <approved|failed|skipped> [--verdict <APPROVE|REQUEST_CHANGES|REJECT>] [--attempt]
 sdlaic gate reentry -c <name> --from <phase> --reason "<why>"   # Mid-flight change
 

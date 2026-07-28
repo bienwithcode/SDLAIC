@@ -16,8 +16,8 @@ or write code.
 
 ## Pre-conditions
 
-- `proposal.md` and (if applicable) `specs/<capability>/spec.md` exist and their
-  gates are `approved` (or `skipped`).
+- `proposal.md` and (if applicable) every `specs/<capability>/spec.md` exist, with
+  the `proposal` and each `spec:<capability>` gate `approved` (or `skipped`).
 - If workflow is `strict`, the design grill has run first.
 
 ## Process

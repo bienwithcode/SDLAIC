@@ -4,6 +4,7 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // --- Workflow Levels ---
@@ -63,6 +64,38 @@ func OrderedPhases() []Phase {
 		PhasePlanned,
 		PhaseImplemented,
 	}
+}
+
+// --- Phase Tiers ---
+
+// PhaseTier names a position in the gate pipeline. Multiple gates can share a
+// tier: when a change spans several capabilities, the Spec tier holds one
+// spec:<capability> gate per capability. Tiers are ordered and drive the
+// re-entry cascade (a re-entered gate supersedes gates in LATER tiers, never
+// siblings in its own tier) and gate rendering.
+type PhaseTier string
+
+const (
+	TierProposal PhaseTier = "proposal"
+	TierSpec     PhaseTier = "spec"
+	TierDesign   PhaseTier = "design"
+	TierTasks    PhaseTier = "tasks"
+)
+
+// OrderedTiers returns the pipeline tiers in order.
+func OrderedTiers() []PhaseTier {
+	return []PhaseTier{TierProposal, TierSpec, TierDesign, TierTasks}
+}
+
+// TierOf returns the tier a gate key belongs to. "spec", "spec:auth", and
+// "spec:billing" all map to TierSpec; "proposal"/"design"/"tasks" map to their
+// own tier. This lets re-entry and rendering treat every per-capability spec
+// gate as one tier without enumerating capability names.
+func TierOf(gateKey string) PhaseTier {
+	if gateKey == string(TierSpec) || strings.HasPrefix(gateKey, string(TierSpec)+":") {
+		return TierSpec
+	}
+	return PhaseTier(gateKey)
 }
 
 // --- Artifact Types ---

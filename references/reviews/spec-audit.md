@@ -2,7 +2,7 @@
 
 > Loaded by `skills/review` after `skills/spec`. Auditor role: QA Lead. Runs in a
 > clean-context subagent with only the `specs/<capability>/spec.md` file(s) + the
-> approved `proposal.md`. Verdict recorded via `sdlaic gate set --phase spec`.
+> approved `proposal.md`. Verdict recorded **per capability** via `sdlaic gate set --phase spec:<capability>`.
 
 ## Claim Verification Rule
 

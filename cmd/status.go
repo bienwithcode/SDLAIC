@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -94,9 +96,40 @@ func printStatusHuman(cmd *cobra.Command, status domain.ChangeStatus) error {
 			marker = "✓"
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s\n", marker, at.FileName())
+
+		// When the spec tier spans capabilities, list each spec:<capability>
+		// entry beneath the aggregate spec line.
+		if at == domain.ArtifactSpec {
+			for _, key := range specCapabilityKeys(status.Artifacts) {
+				cs := status.Artifacts[key]
+				cm := " "
+				if cs.Populated {
+					cm = "✓"
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "      [%s] %s\n", cm, specKeyToPath(key))
+			}
+		}
 	}
 
 	return nil
+}
+
+// specCapabilityKeys returns the sorted spec:<capability> keys in an artifacts
+// map — the per-capability detail entries beneath the aggregate "spec".
+func specCapabilityKeys(artifacts map[string]domain.ArtifactStatus) []string {
+	var keys []string
+	for k := range artifacts {
+		if strings.HasPrefix(k, "spec:") {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// specKeyToPath turns a "spec:auth" key into its artifact path specs/auth/spec.md.
+func specKeyToPath(key string) string {
+	return "specs/" + strings.TrimPrefix(key, "spec:") + "/spec.md"
 }
 
 // resetStatusFlags resets status command flags to defaults.

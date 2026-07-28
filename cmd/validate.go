@@ -117,60 +117,56 @@ func runValidate(cmd *cobra.Command, args []string) error {
 
 	// Strict mode: check artifacts up to current phase are populated
 	if validateStrict {
-		// Load gate state to respect explicit skips
+		// Load gate state to respect explicit skips. Configure the store with the
+		// change's capabilities so per-capability spec gates (spec:<cap>) are
+		// reconciled instead of collapsing back to a single legacy "spec".
 		store := gatestate.NewWithHome(resolveHome(), project.Hash, changeName)
+		if caps, err := state.ListCapabilities(changePath); err == nil {
+			store.SetCapabilities(caps)
+		}
 		gf, _ := store.Load()
+		skipExplicit := func(key string) bool {
+			g, ok := gf.Gates[key]
+			return ok && g.Status == domain.GateStatusSkipped && g.SkippedAt != nil
+		}
 
 		// Read all artifacts and check phases
 		for _, at := range domain.OrderedArtifactTypes() {
-			var gateKey string
-			switch at {
-			case domain.ArtifactProposal:
-				gateKey = "proposal"
-			case domain.ArtifactSpec:
-				gateKey = "spec"
-			case domain.ArtifactDesign:
-				gateKey = "design"
-			case domain.ArtifactTasks:
-				gateKey = "tasks"
-			}
-
-			if gateKey != "" {
-				// Only an EXPLICIT skip (gate set --status skipped, SkippedAt set) exempts
-				// the artifact. An auto-skip from a light/free default (SkippedAt nil) must
-				// still require the artifact, so tightening a change into strict does not
-				// silently trust unreviewed work (matches Gate.IsPassingFor).
-				if g, ok := gf.Gates[gateKey]; ok && g.Status == domain.GateStatusSkipped && g.SkippedAt != nil {
-					continue
-				}
-			}
-
-			populated := false
-
-			label := at.FileName()
 			if at == domain.ArtifactSpec {
-				// The spec artifact is directory-based: specs/<capability>/spec.md.
-				label = "specs/<capability>/spec.md"
-				specsDir := filepath.Join(changePath, "specs")
-				_ = filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
-					if err == nil && !info.IsDir() && state.IsCapabilitySpec(specsDir, path) {
-						data, err := os.ReadFile(path)
-						if err == nil && strings.TrimSpace(string(data)) != "" {
-							populated = true
+				// Per-capability: each declared capability must have a populated
+				// spec.md, unless that capability's gate was explicitly skipped. A
+				// populated sibling must not mask an empty one (per-capability, not OR).
+				caps, _ := state.ListCapabilities(changePath)
+				if len(caps) == 0 {
+					if skipExplicit("spec") {
+						continue
+					}
+					violations = append(violations, "specs/<capability>/spec.md: missing or empty (strict mode)")
+				} else {
+					for _, c := range caps {
+						if skipExplicit("spec:" + c) {
+							continue
+						}
+						data, err := os.ReadFile(filepath.Join(changePath, "specs", c, "spec.md"))
+						if err != nil || strings.TrimSpace(string(data)) == "" {
+							violations = append(violations, fmt.Sprintf("specs/%s/spec.md: missing or empty (strict mode)", c))
 						}
 					}
-					return nil
-				})
-			} else {
-				filePath := filepath.Join(changePath, at.FileName())
-				data, err := os.ReadFile(filePath)
-				if err == nil && strings.TrimSpace(string(data)) != "" {
-					populated = true
 				}
+				continue
 			}
 
-			if !populated {
-				violations = append(violations, fmt.Sprintf("%s: missing or empty (strict mode)", label))
+			// Non-spec artifact: single gate skip-exempt + population check. Only an
+			// EXPLICIT skip (SkippedAt set) exempts the artifact; an auto-skip from a
+			// light/free default (SkippedAt nil) must still require the artifact, so
+			// tightening a change into strict does not silently trust unreviewed work.
+			if skipExplicit(string(at)) {
+				continue
+			}
+			filePath := filepath.Join(changePath, at.FileName())
+			data, err := os.ReadFile(filePath)
+			if err != nil || strings.TrimSpace(string(data)) == "" {
+				violations = append(violations, fmt.Sprintf("%s: missing or empty (strict mode)", at.FileName()))
 			}
 		}
 	}

@@ -13,7 +13,7 @@ A plan without tests is a wish list. Every behavioral task must follow the RED �
 
 - SDLAIC change is in DESIGNED state (proposal → spec → design phases complete).
 - `proposal.md` exists and its gate is `approved` (or `skipped`).
-- `specs/<capability>/spec.md` exists (if the change is user-facing) and its gate is `approved`/`skipped`.
+- `specs/<capability>/spec.md` exists (if the change is user-facing) and every `spec:<capability>` gate is `approved`/`skipped`.
 - `design.md` exists with technical architecture and its gate is `approved`/`skipped`.
 - If workflow is `strict`, the plan grill has run before drafting (see Handoff / Gate).
 

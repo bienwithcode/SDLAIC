@@ -59,6 +59,31 @@ func TestStatus_HumanOutput(t *testing.T) {
 	assert.Contains(t, output, "CONTEXT")
 }
 
+func TestStatus_PerCapabilitySpecDetail(t *testing.T) {
+	// P2: when the spec tier spans capabilities, `status` lists each
+	// specs/<capability>/spec.md beneath the aggregate spec line.
+	resetStatusFlags()
+	dir := initWorkspaceForTest(t)
+
+	_, err := ExecuteCommand(rootCmd, "new", "change", "STATUS-MULTICAP")
+	require.NoError(t, err)
+
+	changeDir := filepath.Join(dir, ".sdlaic", "changes", "STATUS-MULTICAP")
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "context.md"), []byte("# Context\nReal content."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "proposal.md"), []byte("# Proposal\nReal proposal."), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(changeDir, "specs", "auth"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "specs", "auth", "spec.md"), []byte("# Auth\nReal requirement."), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(changeDir, "specs", "billing"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "specs", "billing", "spec.md"), []byte("  \n"), 0644))
+
+	resetStatusFlags()
+	output, err := ExecuteCommand(rootCmd, "status")
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "specs/auth/spec.md", "populated capability detail line shown")
+	assert.Contains(t, output, "specs/billing/spec.md", "empty capability detail line shown")
+}
+
 func TestStatus_WithChangeFlag(t *testing.T) {
 	resetStatusFlags()
 	_ = initWorkspaceForTest(t)

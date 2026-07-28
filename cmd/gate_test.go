@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -141,4 +143,47 @@ func TestGateStatus_StrictBlocksAfterLightInit(t *testing.T) {
 	assert.Contains(t, output, "[✓] proposal", "explicit skip survives into strict")
 	assert.Contains(t, output, "[ ] spec", "auto-skipped gate must block under strict")
 	assert.NotContains(t, output, "[✓] spec", "auto-skipped gate must not pass under strict")
+}
+
+// TestGateSet_PerCapabilitySpecGate exercises the P1 per-capability model
+// end-to-end: when a change has a specs/ tree, the cmd layer resolves capability
+// directories and the Spec tier expands to one spec:<capability> gate each.
+func TestGateSet_PerCapabilitySpecGate(t *testing.T) {
+	initGateWorkspace(t)
+
+	// Give the change two capability directories.
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	changeDir := filepath.Join(wd, ".sdlaic", "changes", "GATE-TEST")
+	require.NoError(t, os.MkdirAll(filepath.Join(changeDir, "specs", "auth"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(changeDir, "specs", "billing"), 0755))
+
+	// gate status reflects per-capability spec gates; the bare legacy "spec" key
+	// is gone.
+	resetGateFlags()
+	output, err := ExecuteCommand(rootCmd, "gate", "status", "--json")
+	require.NoError(t, err)
+	var gf domain.GatesFile
+	require.NoError(t, json.Unmarshal([]byte(output), &gf))
+	assert.Contains(t, gf.Gates, "spec:auth")
+	assert.Contains(t, gf.Gates, "spec:billing")
+	assert.NotContains(t, gf.Gates, "spec", "bare legacy spec key must not appear when capabilities exist")
+
+	// One capability can be approved independently of its sibling.
+	resetGateFlags()
+	_, err = ExecuteCommand(rootCmd, "gate", "set", "--phase", "spec:auth", "--status", "approved")
+	require.NoError(t, err)
+
+	resetGateFlags()
+	output, err = ExecuteCommand(rootCmd, "gate", "status", "--json")
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal([]byte(output), &gf))
+	assert.Equal(t, domain.GateStatusApproved, gf.Gates["spec:auth"].Status)
+	assert.NotEqual(t, domain.GateStatusApproved, gf.Gates["spec:billing"].Status, "sibling capability stays unapproved")
+
+	// Bare "spec" is rejected with a pointer to the per-capability keys.
+	resetGateFlags()
+	_, err = ExecuteCommand(rootCmd, "gate", "set", "--phase", "spec", "--status", "approved")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "spec:auth")
 }

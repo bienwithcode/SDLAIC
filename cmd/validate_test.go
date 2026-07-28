@@ -259,6 +259,104 @@ func TestValidate_StrictRejectsSpecWithoutCapabilityDir(t *testing.T) {
 	assert.Error(t, err, "malformed spec path must fail strict validation")
 }
 
+func TestValidate_StrictFlagsEachEmptyCapabilitySpec(t *testing.T) {
+	// Regression: with one populated and one empty capability spec, strict
+	// validation must fail naming the empty capability. Previously a populated
+	// sibling masked the empty one (OR-collapse) and strict passed silently.
+	resetStatusFlags()
+	resetValidateFlags()
+	dir := initWorkspaceForTest(t)
+
+	_, err := ExecuteCommand(rootCmd, "new", "change", "MULTICAP")
+	require.NoError(t, err)
+
+	changeDir := filepath.Join(dir, ".sdlaic", "changes", "MULTICAP")
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "context.md"), []byte("# Context\nReal context."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "proposal.md"), []byte("# Proposal\nReal proposal."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\nReal design."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n- [ ] Task 1"), 0644))
+
+	// capA populated, capB whitespace-only (counts as empty) — capB must be
+	// flagged; capA must not.
+	capA := filepath.Join(changeDir, "specs", "capA")
+	require.NoError(t, os.MkdirAll(capA, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(capA, "spec.md"), []byte("# capA Spec\nReal requirement content."), 0644))
+	capB := filepath.Join(changeDir, "specs", "capB")
+	require.NoError(t, os.MkdirAll(capB, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(capB, "spec.md"), []byte("   \n  "), 0644))
+
+	resetStatusFlags()
+	resetValidateFlags()
+	out, err := ExecuteCommand(rootCmd, "validate", "--strict")
+	require.Error(t, err, "empty capability spec must fail strict even when a sibling is populated")
+	assert.Contains(t, out, "specs/capB/spec.md: missing or empty", "must name the empty capability")
+	assert.NotContains(t, out, "specs/capA/spec.md: missing or empty", "populated capability must not be flagged")
+}
+
+func TestValidate_StrictPassesWhenAllCapabilitySpecsPopulated(t *testing.T) {
+	// Counterpart: multiple populated capability specs must pass strict, so the
+	// per-capability check does not over-flag the all-good case.
+	resetStatusFlags()
+	resetValidateFlags()
+	dir := initWorkspaceForTest(t)
+
+	_, err := ExecuteCommand(rootCmd, "new", "change", "MULTICAP-OK")
+	require.NoError(t, err)
+
+	changeDir := filepath.Join(dir, ".sdlaic", "changes", "MULTICAP-OK")
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "context.md"), []byte("# Context\nReal context."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "proposal.md"), []byte("# Proposal\nReal proposal."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\nReal design."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n- [ ] Task 1"), 0644))
+
+	for _, cap := range []string{"capA", "capB"} {
+		capDir := filepath.Join(changeDir, "specs", cap)
+		require.NoError(t, os.MkdirAll(capDir, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(capDir, "spec.md"), []byte("# "+cap+" Spec\nReal requirement content."), 0644))
+	}
+
+	resetStatusFlags()
+	resetValidateFlags()
+	_, err = ExecuteCommand(rootCmd, "validate", "--strict")
+	assert.NoError(t, err, "all populated capability specs must pass strict")
+}
+
+func TestValidate_StrictRespectsPerCapabilitySkip(t *testing.T) {
+	// P2: an explicitly-skipped spec:<cap> gate exempts only that capability's
+	// spec.md; a non-skipped sibling capability's empty spec is still flagged.
+	resetStatusFlags()
+	resetValidateFlags()
+	dir := initWorkspaceForTest(t)
+
+	_, err := ExecuteCommand(rootCmd, "new", "change", "MULTICAP-SKIP")
+	require.NoError(t, err)
+
+	changeDir := filepath.Join(dir, ".sdlaic", "changes", "MULTICAP-SKIP")
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "context.md"), []byte("# Context\nReal context."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "proposal.md"), []byte("# Proposal\nReal proposal."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "design.md"), []byte("# Design\nReal design."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n- [ ] Task 1"), 0644))
+
+	// Both capability specs empty.
+	require.NoError(t, os.MkdirAll(filepath.Join(changeDir, "specs", "auth"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "specs", "auth", "spec.md"), []byte("  \n"), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(changeDir, "specs", "billing"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "specs", "billing", "spec.md"), []byte("  \n"), 0644))
+
+	// Explicitly skip only the auth capability's spec gate.
+	resetGateFlags()
+	_, err = ExecuteCommand(rootCmd, "gate", "set", "--phase", "spec:auth", "--status", "skipped")
+	require.NoError(t, err)
+
+	// Strict validation flags billing (not skipped) but not auth (skipped).
+	resetStatusFlags()
+	resetValidateFlags()
+	out, err := ExecuteCommand(rootCmd, "validate", "--strict")
+	require.Error(t, err)
+	assert.Contains(t, out, "specs/billing/spec.md: missing or empty", "non-skipped capability must be flagged")
+	assert.NotContains(t, out, "specs/auth/spec.md: missing or empty", "skipped capability must be exempt")
+}
+
 func TestValidate_NoWorkspace(t *testing.T) {
 	resetStatusFlags()
 	resetValidateFlags()

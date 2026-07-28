@@ -46,7 +46,7 @@ NO_ACTIVE_CHANGE
   ▼
 PROPOSED   [grillme proposal] → proposal → [review proposal] → gate:proposal ✓
   ▼
-SPECIFIED  [grillme spec]     → spec     → [review spec]     → gate:spec ✓
+SPECIFIED  [grillme spec]     → spec:<cap> → [review spec:<cap>] → gate:spec:<cap> ✓  (per capability)
   ▼
 DESIGNED   [grillme design]   → design   → [review design]   → gate:design ✓
   ▼
@@ -70,7 +70,7 @@ without both.
 |-------|------------------|------|---------|
 | (init) | `context.md` (optional) | — | Ticket + research summary |
 | PROPOSED | `proposal.md` | proposal | Scope contract (IN/OUT-OF-SCOPE table) |
-| SPECIFIED | `specs/<capability>/spec.md` | spec | Formal GIVEN/WHEN/THEN requirements (if user-facing) |
+| SPECIFIED | `specs/<capability>/spec.md` | spec:<capability> | Formal GIVEN/WHEN/THEN requirements (one gate per capability, if user-facing) |
 | DESIGNED | `design.md` | design | Technical architecture |
 | PLANNED | `tasks.md` | tasks | Ordered TDD tasks by subsystem milestone |
 | IMPLEMENTED | Committed code | — | Source changes |
@@ -99,7 +99,7 @@ sdlaic status --change <name> [--json]
 sdlaic gate status --change <name> [--json]
 
 # Record a gate transition (called by grillme / review skills)
-sdlaic gate set --change <name> --phase <proposal|spec|design|tasks> \
+sdlaic gate set --change <name> --phase <proposal|spec:<capability>|design|tasks> \
   --status <approved|failed|skipped> [--verdict <APPROVE|REQUEST_CHANGES|REJECT>] [--attempt]
 
 # Re-enter the pipeline at an earlier gate (mid-flight requirement change)

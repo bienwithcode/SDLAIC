@@ -29,7 +29,7 @@ both on; `light`/`free` = draft-only, gates auto-`skipped`).
 NO_ACTIVE_CHANGE ──→ new ──→ context.md
    │
    ▼   [grillme proposal] → proposal → [review proposal] → gate:proposal ✓
-   ▼   [grillme spec]     → spec     → [review spec]     → gate:spec ✓
+   ▼   [grillme spec]     → spec:<cap> → [review spec:<cap>] → gate:spec:<cap> ✓  (one gate per capability)
    ▼   [grillme design]   → design   → [review design]   → gate:design ✓
    ▼   [grillme tasks]    → plan     → [review tasks]    → gate:tasks ✓
    ▼   apply ──→ code ──→ review code ──→ review.md
@@ -42,7 +42,7 @@ Read artifact presence (`sdlaic status`) AND gate status (`sdlaic gate status --
 | Highest Artifact Found | Gate Status | Routing Action |
 |------------------------|-------------|----------------|
 | context only (or gate not passed for proposal) | proposal `is_passing: false` | `grillme proposal` → `proposal` → `review proposal` |
-| proposal passed | spec `is_passing: false` | `grillme spec` → `spec` → `review spec` |
+| proposal passed | a `spec:<cap>` gate `is_passing: false` | `grillme spec` → `spec:<cap>` → `review spec:<cap>` (per capability) |
 | spec passed (or skipped as non-user-facing) | design `is_passing: false` | `grillme design` → `design` → `review design` |
 | design passed | tasks `is_passing: false` | `grillme tasks` → `plan` → `review tasks` |
 | tasks passed | — | `apply` — execute tasks |
@@ -64,7 +64,7 @@ Before taking action, verify:
 - [ ] The phase is not advanced past a gate that is not `approved`/`skipped`
 - [ ] The correct artifact exists for the current phase:
   - proposal phase: `proposal.md` exists (IN/OUT-OF-SCOPE table + Challenge & Resolution Log)
-  - spec phase: `specs/<capability>/spec.md` exists
+  - spec phase: every `specs/<capability>/spec.md` exists (one `spec:<capability>` gate per capability)
   - design phase: `design.md` exists
   - tasks phase: `tasks.md` exists
   - apply: committed code exists

@@ -23,6 +23,10 @@ Invoked as `grillme <phase>` where `<phase>` ∈ `proposal | spec | design | tas
 | `design` | `references/grills/design-grill.md` | `skills/design` | `design.md` |
 | `tasks` | `references/grills/plan-grill.md` | `skills/plan` | `tasks.md` |
 
+> **Per-capability (`spec` phase):** when the change has multiple `specs/<capability>/`
+> directories, the grill runs once per capability (each gets its own Challenge &
+> Resolution Log), and the downstream review records one `spec:<capability>` gate each.
+
 ## Workflow toggle
 
 - `strict` — grill is **mandatory** before the draft skill runs.

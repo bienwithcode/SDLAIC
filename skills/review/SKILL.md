@@ -29,17 +29,20 @@ Invoked as `review <phase>` where `<phase>` ∈ `proposal | spec | design | task
 gate-state store — NEVER as a marker inside the reviewed artifact or the repo:
 
 ```bash
-sdlaic gate set --phase <proposal|spec|design|tasks> \
+sdlaic gate set --phase <proposal|spec:<capability>|design|tasks> \
   --status <approved|failed> --verdict <APPROVE|REQUEST_CHANGES|REJECT>
 ```
 
 `APPROVE → approved` (unlocks the next phase); `REQUEST_CHANGES | REJECT → failed`
 (the draft skill re-drafts and increments the attempt).
 
+For `spec`, the gate is **per-capability**: record `--phase spec:<capability>` once
+per `specs/<capability>/` directory (e.g. `spec:auth`, `spec:billing`).
+
 **Workflow toggle:** in `light`/`free`, review is skipped and the enforcer marks
 the gate `skipped`.
 
-## Artifact-gate flow (proposal | spec | design | tasks)
+## Artifact-gate flow (proposal | spec:<capability> | design | tasks)
 
 1. Spawn a clean-context subagent (`subagent_type="general-purpose"`) with only:
    the target artifact, its upstream approved artifact(s), and the phase's audit

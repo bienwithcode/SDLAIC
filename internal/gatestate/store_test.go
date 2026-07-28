@@ -187,7 +187,7 @@ func TestReEnterSupersedesDownstream(t *testing.T) {
 	_, err := s.Init(domain.WorkflowStrict)
 	require.NoError(t, err)
 	// Approve everything first.
-	for _, k := range GateKeys() {
+	for _, k := range s.GateKeys() {
 		_, err := s.SetGate(k, domain.GateStatusApproved, nil, false)
 		require.NoError(t, err)
 	}
@@ -220,7 +220,7 @@ func TestReEnterLightKeepsGatesSkipped(t *testing.T) {
 	gf, err := s.ReEnter("proposal", "changed", domain.WorkflowFree)
 	require.NoError(t, err)
 	// In free/light mode, re-entry must NOT introduce a blocking (pending) status.
-	for _, k := range GateKeys() {
+	for _, k := range s.GateKeys() {
 		assert.Equal(t, domain.GateStatusSkipped, gf.Gates[k].Status, "gate %s must stay skipped", k)
 	}
 }
@@ -282,7 +282,9 @@ func TestSchemaVersionConstant(t *testing.T) {
 }
 
 func TestGateKeysOrdered(t *testing.T) {
-	assert.Equal(t, []string{"proposal", "spec", "design", "tasks"}, GateKeys())
+	// Legacy store (no capabilities) keeps the original single-spec pipeline.
+	s := newTestStore(t)
+	assert.Equal(t, []string{"proposal", "spec", "design", "tasks"}, s.GateKeys())
 }
 
 func TestErrorsIsWiring(t *testing.T) {
@@ -403,4 +405,102 @@ func TestSetGate_FailedToApprovedNoVerdictClearsStaleReject(t *testing.T) {
 	assert.Equal(t, domain.GateStatusApproved, g.Status)
 	require.NotNil(t, g.ApprovedAt)
 	assert.Equal(t, domain.Verdict(""), g.Review.Verdict, "stale rejecting verdict must not survive an approval")
+}
+
+func TestPipelinePerCapability(t *testing.T) {
+	s := newTestStore(t)
+	s.SetCapabilities([]string{"auth", "billing"})
+
+	assert.Equal(t,
+		[]string{"proposal", "spec:auth", "spec:billing", "design", "tasks"},
+		s.GateKeys())
+
+	gf, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+	assert.Len(t, gf.Gates, 5)
+	for _, k := range s.GateKeys() {
+		require.Contains(t, gf.Gates, k, "gate %s should be seeded", k)
+	}
+	assert.Equal(t, "specs/auth/spec.md", gf.Gates["spec:auth"].Artifact)
+	assert.Equal(t, "specs/billing/spec.md", gf.Gates["spec:billing"].Artifact)
+	assert.Equal(t, domain.PhaseSpecified, gf.Gates["spec:auth"].Phase)
+}
+
+func TestSetGatePerCapability(t *testing.T) {
+	s := newTestStore(t)
+	s.SetCapabilities([]string{"auth", "billing"})
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	// spec:<capability> is a valid gate and can be approved independently.
+	gf, err := s.SetGate("spec:auth", domain.GateStatusApproved, nil, false)
+	require.NoError(t, err)
+	assert.Equal(t, domain.GateStatusApproved, gf.Gates["spec:auth"].Status)
+	// Sibling capability is untouched by this set.
+	assert.NotEqual(t, domain.GateStatusApproved, gf.Gates["spec:billing"].Status)
+
+	// Bare "spec" is rejected; the error names the per-capability keys.
+	_, err = s.SetGate("spec", domain.GateStatusApproved, nil, false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "spec:auth")
+	assert.Contains(t, err.Error(), "spec:billing")
+}
+
+func TestReEnterSpecCapabilitySparesSibling(t *testing.T) {
+	s := newTestStore(t)
+	s.SetCapabilities([]string{"auth", "billing"})
+	_, err := s.Init(domain.WorkflowStrict)
+	require.NoError(t, err)
+	// Approve every gate first.
+	for _, k := range s.GateKeys() {
+		_, err := s.SetGate(k, domain.GateStatusApproved, nil, false)
+		require.NoError(t, err)
+	}
+
+	// Re-enter at spec:auth: it resets; design+tasks supersede; but spec:billing
+	// (a sibling capability) must survive untouched — independent review lifecycle.
+	gf, err := s.ReEnter("spec:auth", "auth requirements changed", domain.WorkflowStrict)
+	require.NoError(t, err)
+
+	assert.Equal(t, domain.GateStatusPending, gf.Gates["spec:auth"].Status)
+	assert.Nil(t, gf.Gates["spec:auth"].ApprovedAt)
+
+	assert.True(t, gf.Gates["design"].Superseded, "later-tier design must supersede")
+	assert.True(t, gf.Gates["tasks"].Superseded, "later-tier tasks must supersede")
+
+	assert.False(t, gf.Gates["spec:billing"].Superseded, "sibling capability must not be superseded")
+	assert.Equal(t, domain.GateStatusApproved, gf.Gates["spec:billing"].Status, "sibling capability keeps its verdict")
+	assert.False(t, gf.Gates["proposal"].Superseded, "earlier-tier proposal must not supersede")
+
+	require.Len(t, gf.History, 1)
+	assert.Contains(t, gf.History[0].SupersededGates, "design")
+	assert.Contains(t, gf.History[0].SupersededGates, "tasks")
+	assert.NotContains(t, gf.History[0].SupersededGates, "spec:billing")
+}
+
+func TestReconcileMigratesLegacySpecKey(t *testing.T) {
+	s := newTestStore(t)
+	s.SetCapabilities([]string{"auth"})
+
+	// A legacy meta.json from the old single-spec model: a bare "spec" gate
+	// (approved) and no spec:auth entry.
+	require.NoError(t, os.MkdirAll(s.dir(), 0755))
+	legacy := `{"schema_version":1,"project_hash":"abc123def456","change":"JIRA-789","workflow":"strict","gates":{` +
+		`"proposal":{"phase":"PROPOSED","artifact":"proposal.md","status":"approved"},` +
+		`"spec":{"phase":"SPECIFIED","artifact":"specs/x/spec.md","status":"approved"},` +
+		`"design":{"phase":"DESIGNED","artifact":"design.md","status":"pending"},` +
+		`"tasks":{"phase":"PLANNED","artifact":"tasks.md","status":"pending"}}}`
+	require.NoError(t, os.WriteFile(filepath.Join(s.dir(), "meta.json"), []byte(legacy), 0644))
+
+	gf, err := s.Load()
+	require.NoError(t, err)
+
+	// Legacy "spec" is dropped; spec:auth is seeded pending — it must be
+	// re-reviewed under the per-capability model, NOT inherit the old approval.
+	assert.NotContains(t, gf.Gates, "spec")
+	assert.Contains(t, gf.Gates, "spec:auth")
+	assert.Equal(t, domain.GateStatusPending, gf.Gates["spec:auth"].Status, "migrated capability must be re-reviewed")
+	assert.Equal(t, "specs/auth/spec.md", gf.Gates["spec:auth"].Artifact)
+	// Non-spec gates survive reconciliation.
+	assert.Equal(t, domain.GateStatusApproved, gf.Gates["proposal"].Status)
 }

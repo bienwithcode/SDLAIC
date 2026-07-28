@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -37,46 +38,32 @@ const (
 	historyFile = "history.jsonl"
 )
 
-// gateMeta describes one gate in the pipeline: its key, the phase it satisfies,
-// and the artifact it gates.
+// gateMeta describes one gate in the pipeline: its key, its pipeline tier, the
+// phase it satisfies, and the artifact it gates.
 type gateMeta struct {
 	key      string
+	tier     domain.PhaseTier
 	phase    domain.Phase
 	artifact string
 }
 
-// pipeline is the canonical, ordered set of gates.
-var pipeline = []gateMeta{
-	{"proposal", domain.PhaseProposed, "proposal.md"},
-	{"spec", domain.PhaseSpecified, "specs/<capability>/spec.md"},
-	{"design", domain.PhaseDesigned, "design.md"},
-	{"tasks", domain.PhasePlanned, "tasks.md"},
-}
-
-// GateKeys returns the canonical gate keys in pipeline order.
-func GateKeys() []string {
-	keys := make([]string, len(pipeline))
-	for i, g := range pipeline {
-		keys[i] = g.key
-	}
-	return keys
-}
-
-func gateFor(key string) (gateMeta, bool) {
-	for _, g := range pipeline {
-		if g.key == key {
-			return g, true
-		}
-	}
-	return gateMeta{}, false
+// legacyPipeline is the single-spec fallback used when a store has no resolved
+// capabilities (a non-user-facing change with no specs/ directory). It preserves
+// the original one-"spec"-gate behavior unchanged.
+var legacyPipeline = []gateMeta{
+	{"proposal", domain.TierProposal, domain.PhaseProposed, "proposal.md"},
+	{"spec", domain.TierSpec, domain.PhaseSpecified, "specs/<capability>/spec.md"},
+	{"design", domain.TierDesign, domain.PhaseDesigned, "design.md"},
+	{"tasks", domain.TierTasks, domain.PhasePlanned, "tasks.md"},
 }
 
 // Store is a handle to one change's gate-state directory.
 type Store struct {
-	home        string
-	projectHash string
-	change      string
-	now         func() time.Time
+	home         string
+	projectHash  string
+	change       string
+	capabilities []string // resolved capability names; empty → legacy single-spec pipeline
+	now          func() time.Time
 }
 
 // New returns a Store rooted at the user's home directory.
@@ -93,6 +80,60 @@ func NewWithHome(home, projectHash, change string) *Store {
 		change:      change,
 		now:         func() time.Time { return time.Now().UTC() },
 	}
+}
+
+// SetCapabilities configures the store for per-capability spec gates. When caps
+// is non-empty the Spec tier expands to one spec:<capability> gate per entry;
+// when empty the store uses the legacy single "spec" gate. The capability list
+// is resolved by the caller (the cmd layer, from the change's specs/ directory),
+// so this package stays free of filesystem reads. Returns the store for chaining.
+func (s *Store) SetCapabilities(caps []string) *Store {
+	s.capabilities = caps
+	return s
+}
+
+// pipeline returns the ordered gates for this change. With capabilities set it
+// emits one spec:<cap> gate per capability (per-capability tracking); otherwise
+// it falls back to legacyPipeline so changes without specs/ behave unchanged.
+func (s *Store) pipeline() []gateMeta {
+	if len(s.capabilities) == 0 {
+		return legacyPipeline
+	}
+	pipe := make([]gateMeta, 0, 2+len(s.capabilities))
+	pipe = append(pipe, gateMeta{"proposal", domain.TierProposal, domain.PhaseProposed, "proposal.md"})
+	for _, c := range s.capabilities {
+		pipe = append(pipe, gateMeta{
+			key:      "spec:" + c,
+			tier:     domain.TierSpec,
+			phase:    domain.PhaseSpecified,
+			artifact: "specs/" + c + "/spec.md",
+		})
+	}
+	pipe = append(pipe,
+		gateMeta{"design", domain.TierDesign, domain.PhaseDesigned, "design.md"},
+		gateMeta{"tasks", domain.TierTasks, domain.PhasePlanned, "tasks.md"},
+	)
+	return pipe
+}
+
+// GateKeys returns this change's gate keys in pipeline order.
+func (s *Store) GateKeys() []string {
+	pipe := s.pipeline()
+	keys := make([]string, len(pipe))
+	for i, g := range pipe {
+		keys[i] = g.key
+	}
+	return keys
+}
+
+// gateFor looks up a gate's metadata by key within this change's pipeline.
+func (s *Store) gateFor(key string) (gateMeta, bool) {
+	for _, g := range s.pipeline() {
+		if g.key == key {
+			return g, true
+		}
+	}
+	return gateMeta{}, false
 }
 
 // dir returns the change's gate-state directory.
@@ -119,7 +160,39 @@ func (s *Store) Load() (domain.GatesFile, error) {
 	if err := json.Unmarshal(data, &gf); err != nil {
 		return domain.GatesFile{}, fmt.Errorf("parsing gate state %s: %w", s.metaPath(), err)
 	}
+	s.reconcile(&gf)
 	return gf, nil
+}
+
+// reconcile aligns gf.Gates with this change's current pipeline. It drops gates
+// that no longer belong (a legacy "spec" key once per-capability gates take over,
+// or a spec:<cap> whose directory was removed) and seeds any missing pipeline
+// gate with the workflow-appropriate initial status. Reconcile is in-memory only;
+// it persists on the next Save (SetGate/ReEnter/Init). This keeps on-disk state
+// self-healing as capabilities are added to or removed from specs/.
+func (s *Store) reconcile(gf *domain.GatesFile) {
+	if gf.Gates == nil {
+		return
+	}
+	pipe := s.pipeline()
+	want := make(map[string]gateMeta, len(pipe))
+	for _, g := range pipe {
+		want[g.key] = g
+	}
+	for k := range gf.Gates {
+		if _, ok := want[k]; !ok {
+			delete(gf.Gates, k)
+		}
+	}
+	initial := domain.GateStatusPending
+	if gf.Workflow == domain.WorkflowLight || gf.Workflow == domain.WorkflowFree {
+		initial = domain.GateStatusSkipped
+	}
+	for key, meta := range want {
+		if _, ok := gf.Gates[key]; !ok {
+			gf.Gates[key] = domain.Gate{Phase: meta.phase, Artifact: meta.artifact, Status: initial}
+		}
+	}
 }
 
 // defaultGates builds a fresh GatesFile with the four canonical gates, without
@@ -132,17 +205,18 @@ func (s *Store) defaultGates(workflow domain.WorkflowLevel) domain.GatesFile {
 	}
 
 	now := s.stamp()
+	pipe := s.pipeline()
 	gf := domain.GatesFile{
 		SchemaVersion: SchemaVersion,
 		ProjectHash:   s.projectHash,
 		Change:        s.change,
 		Workflow:      workflow,
 		PipelineState: string(domain.PhaseEmpty),
-		Gates:         make(map[string]domain.Gate, len(pipeline)),
+		Gates:         make(map[string]domain.Gate, len(pipe)),
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
-	for _, g := range pipeline {
+	for _, g := range pipe {
 		gf.Gates[g.key] = domain.Gate{
 			Phase:    g.phase,
 			Artifact: g.artifact,
@@ -181,15 +255,9 @@ func (s *Store) LoadOrDefault(workflow domain.WorkflowLevel) (domain.GatesFile, 
 // is marked superseded and reset to pending. The event is appended to history.
 // meta.json must already exist.
 func (s *Store) ReEnter(fromKey, reason string, currentWorkflow domain.WorkflowLevel) (domain.GatesFile, error) {
-	fromIdx := -1
-	for i, g := range pipeline {
-		if g.key == fromKey {
-			fromIdx = i
-			break
-		}
-	}
-	if fromIdx == -1 {
-		return domain.GatesFile{}, fmt.Errorf("unknown gate %q; valid: %v", fromKey, GateKeys())
+	fromMeta, ok := s.gateFor(fromKey)
+	if !ok {
+		return domain.GatesFile{}, UnknownGateErr(fromKey, s.GateKeys())
 	}
 
 	gf, err := s.Load()
@@ -197,7 +265,7 @@ func (s *Store) ReEnter(fromKey, reason string, currentWorkflow domain.WorkflowL
 		return domain.GatesFile{}, err
 	}
 	if gf.Gates == nil {
-		gf.Gates = make(map[string]domain.Gate, len(pipeline))
+		gf.Gates = make(map[string]domain.Gate, len(s.pipeline()))
 	}
 
 	reset := resetStatus(currentWorkflow)
@@ -213,10 +281,19 @@ func (s *Store) ReEnter(fromKey, reason string, currentWorkflow domain.WorkflowL
 	from.Grill = domain.GrillRecord{}
 	gf.Gates[fromKey] = from
 
-	// Supersede everything downstream
+	// Supersede every gate in a LATER tier (never siblings in the same tier):
+	// re-entering spec:auth supersedes design + tasks, not spec:billing, because
+	// an independent capability's review should survive a sibling's rework.
+	fromOrder := tierOrder(fromMeta.tier)
 	var superseded []string
-	for _, g := range pipeline[fromIdx+1:] {
-		gate := gf.Gates[g.key]
+	for _, key := range SortedGateKeys(gf.Gates) {
+		if key == fromKey {
+			continue
+		}
+		if tierOrder(domain.TierOf(key)) <= fromOrder {
+			continue
+		}
+		gate := gf.Gates[key]
 		gate.Superseded = true
 		gate.SupersededBy = ptr(fromKey)
 		gate.Status = reset
@@ -224,15 +301,15 @@ func (s *Store) ReEnter(fromKey, reason string, currentWorkflow domain.WorkflowL
 		gate.SkippedAt = nil
 		gate.Review = domain.ReviewRecord{}
 		gate.Grill = domain.GrillRecord{}
-		gf.Gates[g.key] = gate
-		superseded = append(superseded, g.key)
+		gf.Gates[key] = gate
+		superseded = append(superseded, key)
 	}
 
 	gf.CurrentGate = fromKey
-	gf.PipelineState = string(pipeline[fromIdx].phase)
+	gf.PipelineState = string(fromMeta.phase)
 
 	ev := domain.ReEntryEvent{
-		FromPhase:       pipeline[fromIdx].phase,
+		FromPhase:       fromMeta.phase,
 		Reason:          reason,
 		At:              s.stamp(),
 		SupersededGates: superseded,
@@ -302,9 +379,9 @@ func writeFileAtomic(path string, data []byte) error {
 // increments; when the status is approved the approval timestamp is stamped.
 // The change's meta.json must already exist (see Init).
 func (s *Store) SetGate(key string, status domain.GateStatus, verdict *domain.Verdict, incAttempt bool) (domain.GatesFile, error) {
-	meta, ok := gateFor(key)
+	meta, ok := s.gateFor(key)
 	if !ok {
-		return domain.GatesFile{}, fmt.Errorf("unknown gate %q; valid: %v", key, GateKeys())
+		return domain.GatesFile{}, UnknownGateErr(key, s.GateKeys())
 	}
 
 	// A verdict implies exactly one lifecycle status; reject contradictions so a
@@ -320,7 +397,7 @@ func (s *Store) SetGate(key string, status domain.GateStatus, verdict *domain.Ve
 		return domain.GatesFile{}, err
 	}
 	if gf.Gates == nil {
-		gf.Gates = make(map[string]domain.Gate, len(pipeline))
+		gf.Gates = make(map[string]domain.Gate, len(s.pipeline()))
 	}
 
 	g := gf.Gates[key]
@@ -416,7 +493,7 @@ func renderReview(gf domain.GatesFile) string {
 
 	fmt.Fprintf(b, "| Gate | Status | Verdict | Attempts | Approved |\n")
 	fmt.Fprintf(b, "|------|--------|---------|----------|----------|\n")
-	for _, key := range GateKeys() {
+	for _, key := range SortedGateKeys(gf.Gates) {
 		g := gf.Gates[key]
 		approved := "—"
 		if g.ApprovedAt != nil {
@@ -429,7 +506,7 @@ func renderReview(gf domain.GatesFile) string {
 		fmt.Fprintf(b, "| %s | %s | %s | %d | %s |\n", key, g.Status, verdict, g.Attempts, approved)
 	}
 
-	for _, key := range GateKeys() {
+	for _, key := range SortedGateKeys(gf.Gates) {
 		g := gf.Gates[key]
 		if len(g.Review.Findings) == 0 {
 			continue
@@ -440,6 +517,54 @@ func renderReview(gf domain.GatesFile) string {
 		}
 	}
 	return b.String()
+}
+
+// SortedGateKeys returns the keys of gates ordered by pipeline tier then key
+// name, so spec:auth and spec:billing cluster together under the Spec tier
+// regardless of map iteration order. A legacy "spec" key sorts within the Spec
+// tier too. Exported so the cmd layer can render gates consistently.
+func SortedGateKeys(gates map[string]domain.Gate) []string {
+	keys := make([]string, 0, len(gates))
+	for k := range gates {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		oi, oj := tierOrder(domain.TierOf(keys[i])), tierOrder(domain.TierOf(keys[j]))
+		if oi != oj {
+			return oi < oj
+		}
+		return keys[i] < keys[j]
+	})
+	return keys
+}
+
+// tierOrder returns the ordinal of a tier for cascade and sort comparisons;
+// unknown tiers sort last.
+func tierOrder(t domain.PhaseTier) int {
+	for i, ot := range domain.OrderedTiers() {
+		if ot == t {
+			return i
+		}
+	}
+	return len(domain.OrderedTiers())
+}
+
+// UnknownGateErr builds a helpful error for an unrecognized gate key. When the
+// caller used a bare "spec" but the change has per-capability spec gates, it
+// points them at spec:<capability> instead of just listing every key.
+func UnknownGateErr(key string, valid []string) error {
+	if key == string(domain.TierSpec) {
+		var specCaps []string
+		for _, k := range valid {
+			if strings.HasPrefix(k, "spec:") {
+				specCaps = append(specCaps, k)
+			}
+		}
+		if len(specCaps) > 0 {
+			return fmt.Errorf("unknown gate %q; this change has per-capability spec gates — use one of: %s", key, strings.Join(specCaps, ", "))
+		}
+	}
+	return fmt.Errorf("unknown gate %q; valid: %v", key, valid)
 }
 
 func ptr(s string) *string { return &s }
