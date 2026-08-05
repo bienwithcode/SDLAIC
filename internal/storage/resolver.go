@@ -62,9 +62,14 @@ func NormalizeChangesDir(input string, cwd string, home string) (string, error) 
 		return "", fmt.Errorf("changes directory must not be empty")
 	}
 
+	// Accept both separators after the tilde. Matching only filepath.Separator
+	// left "~/work/changes" unexpanded on Windows, where the separator is a
+	// backslash — the path then fell through to the relative branch and became
+	// <cwd>\~\work\changes, creating a literal "~" directory. Users type forward
+	// slashes on Windows too, and Go's filepath accepts them everywhere else.
 	if trimmed == "~" {
 		trimmed = home
-	} else if strings.HasPrefix(trimmed, "~"+string(filepath.Separator)) {
+	} else if strings.HasPrefix(trimmed, "~/") || strings.HasPrefix(trimmed, "~"+string(filepath.Separator)) {
 		trimmed = filepath.Join(home, trimmed[2:])
 	}
 
