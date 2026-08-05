@@ -22,28 +22,32 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
 
+      # The whole suite runs in seconds, so -timeout 2m still leaves ample room.
+      # Go's 10m default meant a deadlocked test burned eleven minutes before
+      # reporting — long enough to look like a slow runner rather than a hang.
+      #
       # -race needs a C toolchain on Windows: slow to set up and flaky in CI.
       - name: Test
         if: matrix.os != 'windows-latest'
-        run: go test -race ./...
+        run: go test -race -timeout 2m ./...
 
       - name: Test (windows)
         if: matrix.os == 'windows-latest'
-        run: go test ./...
+        run: go test -timeout 2m ./...
 
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
