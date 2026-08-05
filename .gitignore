@@ -1,3 +1,6 @@
 .worktrees/
 .DS_Store
 sdlaic
+
+# Build output: goreleaser and the CI smoke-test build both write here.
+dist/

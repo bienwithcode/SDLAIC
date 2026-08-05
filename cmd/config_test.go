@@ -127,7 +127,8 @@ func TestConfigList(t *testing.T) {
 	output, err := ExecuteCommand(rootCmd, "config", "list")
 	require.NoError(t, err)
 	assert.Contains(t, output, "changes_dir")
-	assert.Contains(t, output, ".sdlaic/changes")
+	// The printed path uses the platform separator: .sdlaic\changes on Windows.
+	assert.Contains(t, output, filepath.Join(".sdlaic", "changes"))
 	assert.Contains(t, output, "workflow")
 	assert.Contains(t, output, "strict")
 	assert.NotContains(t, output, "storage")

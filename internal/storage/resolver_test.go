@@ -3,6 +3,7 @@ package storage
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,49 +14,97 @@ import (
 
 // --- ChangesDir helpers (storage-mode-free path resolution) ---
 
+// These paths are built with filepath rather than written as "/work/..." string
+// literals. A POSIX literal is not absolute on Windows — filepath.IsAbs wants a
+// drive letter — so the hardcoded form sent every one of these cases down the
+// relative-path branch and compared "\work\..." against "/work/...".
+
+// absPath returns an absolute path for the running platform, rooted at the
+// volume the tests already live on.
+func absPath(t *testing.T, elem ...string) string {
+	t.Helper()
+	return filepath.Join(append([]string{t.TempDir()}, elem...)...)
+}
+
 func TestDefaultChangesDir(t *testing.T) {
-	assert.Equal(t, "/tmp/project/.sdlaic/changes", DefaultChangesDir("/tmp/project"))
+	root := absPath(t, "project")
+	assert.Equal(t, filepath.Join(root, ".sdlaic", "changes"), DefaultChangesDir(root))
 }
 
 func TestNormalizeChangesDir_KeepsAbsolutePath(t *testing.T) {
-	got, err := NormalizeChangesDir("/work/openspec/changes", "/cwd", "/home/dev")
+	want := absPath(t, "work", "openspec", "changes")
+
+	got, err := NormalizeChangesDir(want, absPath(t, "cwd"), absPath(t, "home"))
+
 	require.NoError(t, err)
-	assert.Equal(t, "/work/openspec/changes", got)
+	assert.Equal(t, want, got)
 }
 
 func TestNormalizeChangesDir_ResolvesRelativeAgainstCwd(t *testing.T) {
-	got, err := NormalizeChangesDir("../openspec/changes", "/work/api", "/home/dev")
+	base := t.TempDir()
+
+	got, err := NormalizeChangesDir(
+		filepath.Join("..", "openspec", "changes"),
+		filepath.Join(base, "work", "api"),
+		filepath.Join(base, "home"))
+
 	require.NoError(t, err)
-	assert.Equal(t, "/work/openspec/changes", got)
+	assert.Equal(t, filepath.Join(base, "work", "openspec", "changes"), got)
 }
 
 func TestNormalizeChangesDir_ExpandsTilde(t *testing.T) {
-	got, err := NormalizeChangesDir("~/openspec/changes", "/cwd", "/home/dev")
+	base := t.TempDir()
+	home := filepath.Join(base, "home", "dev")
+
+	// A forward slash after the tilde, which is what users type on every
+	// platform — including Windows shells.
+	got, err := NormalizeChangesDir("~/openspec/changes", filepath.Join(base, "cwd"), home)
+
 	require.NoError(t, err)
-	assert.Equal(t, "/home/dev/openspec/changes", got)
+	assert.Equal(t, filepath.Join(home, "openspec", "changes"), got)
+}
+
+func TestNormalizeChangesDir_ExpandsTildeWithNativeSeparator(t *testing.T) {
+	base := t.TempDir()
+	home := filepath.Join(base, "home", "dev")
+	input := "~" + string(filepath.Separator) + filepath.Join("openspec", "changes")
+
+	got, err := NormalizeChangesDir(input, filepath.Join(base, "cwd"), home)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(home, "openspec", "changes"), got)
 }
 
 func TestNormalizeChangesDir_ExpandsBareTilde(t *testing.T) {
-	got, err := NormalizeChangesDir("~", "/cwd", "/home/dev")
+	home := absPath(t, "home", "dev")
+
+	got, err := NormalizeChangesDir("~", absPath(t, "cwd"), home)
+
 	require.NoError(t, err)
-	assert.Equal(t, "/home/dev", got)
+	assert.Equal(t, home, got)
 }
 
 func TestNormalizeChangesDir_StripsTrailingSeparator(t *testing.T) {
-	got, err := NormalizeChangesDir("/work/openspec/changes/", "/cwd", "/home/dev")
+	want := absPath(t, "work", "openspec", "changes")
+
+	got, err := NormalizeChangesDir(want+string(filepath.Separator), absPath(t, "cwd"), absPath(t, "home"))
+
 	require.NoError(t, err)
-	assert.Equal(t, "/work/openspec/changes", got)
+	assert.Equal(t, want, got)
 }
 
 func TestNormalizeChangesDir_RejectsEmptyInput(t *testing.T) {
-	_, err := NormalizeChangesDir("  ", "/cwd", "/home/dev")
+	_, err := NormalizeChangesDir("  ", absPath(t, "cwd"), absPath(t, "home"))
 	assert.Error(t, err)
 }
 
 func TestChangesBase_ReturnsCleanedDir(t *testing.T) {
-	got, err := ChangesBase("/work/openspec/changes/")
+	want := absPath(t, "work", "openspec", "changes")
+
+	got, err := ChangesBase(want + string(filepath.Separator))
+
 	require.NoError(t, err)
-	assert.Equal(t, "/work/openspec/changes", got)
+	assert.Equal(t, want, got)
 }
 
 func TestChangesBase_RejectsUnconfiguredProject(t *testing.T) {
@@ -64,9 +113,12 @@ func TestChangesBase_RejectsUnconfiguredProject(t *testing.T) {
 }
 
 func TestChangePath_JoinsChangeName(t *testing.T) {
-	got, err := ChangePath("/work/openspec/changes", "SDL-1")
+	base := absPath(t, "work", "openspec", "changes")
+
+	got, err := ChangePath(base, "SDL-1")
+
 	require.NoError(t, err)
-	assert.Equal(t, "/work/openspec/changes/SDL-1", got)
+	assert.Equal(t, filepath.Join(base, "SDL-1"), got)
 }
 
 func TestChangePath_RejectsEmptyChangeName(t *testing.T) {
@@ -142,7 +194,17 @@ func TestCanonicalPath_IsAbsoluteForRelativeInput(t *testing.T) {
 }
 
 func TestCanonicalPath_HandlesFullyMissingPath(t *testing.T) {
-	assert.Equal(t, "/definitely/not/here", CanonicalPath("/definitely/not/here"))
+	// The old assertion compared against the literal "/definitely/not/here", which
+	// only held where that string is already absolute. On Windows filepath.Abs
+	// prepends the volume, so it became D:\definitely\not\here. Assert the
+	// properties the function promises instead of one platform's spelling.
+	tail := filepath.Join("definitely", "not", "here")
+
+	got := CanonicalPath(filepath.Join(t.TempDir(), tail))
+
+	assert.True(t, filepath.IsAbs(got), "canonical form must be absolute")
+	assert.True(t, strings.HasSuffix(got, tail), "missing remainder must be preserved: %s", got)
+	assert.Equal(t, got, CanonicalPath(got), "canonical form must be stable")
 }
 
 func TestSamePath_DistinguishesDifferentDirectories(t *testing.T) {
