@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -116,6 +117,13 @@ func fatal(msg string, err error) {
 
 // ExecuteCommand is a test helper that executes a Cobra command with the given
 // arguments and captures its output. It resets the command state between calls.
+//
+// The sink is a bytes.Buffer rather than an os.Pipe. A pipe deadlocks here:
+// nothing drains the read end until Execute returns, so a command whose output
+// exceeds the pipe buffer blocks forever mid-write. `completion bash` emits ~28KB,
+// which fits Linux and macOS buffers but not the ~4KB Windows one — the failure
+// was invisible until CI ran on Windows. Reading a fixed 4096-byte slice
+// afterwards also truncated every longer output, silently, on every platform.
 func ExecuteCommand(cmd *cobra.Command, args ...string) (string, error) {
 	// Reset flags for re-execution
 	cmd.SetArgs(args)
@@ -123,18 +131,14 @@ func ExecuteCommand(cmd *cobra.Command, args ...string) (string, error) {
 	// Capture output
 	oldOut := cmd.OutOrStdout()
 	oldErr := cmd.ErrOrStderr()
-	r, w, _ := os.Pipe()
-	cmd.SetOut(w)
-	cmd.SetErr(w)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
 
 	err := cmd.Execute()
 
-	w.Close()
 	cmd.SetOut(oldOut)
 	cmd.SetErr(oldErr)
 
-	// Read captured output
-	buf := make([]byte, 4096)
-	n, _ := r.Read(buf)
-	return string(buf[:n]), err
+	return out.String(), err
 }
