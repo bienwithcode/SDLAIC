@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -177,6 +178,14 @@ func TestSaveGlobal_LeavesNoTempFileBehind(t *testing.T) {
 }
 
 func TestSaveGlobal_FailedWriteLeavesOriginalIntact(t *testing.T) {
+	// The failure is induced with chmod, which Windows does not honour for
+	// directories: the write succeeds there and the test asserts an error that
+	// never comes. Skipping is honest — the rollback path itself is not
+	// platform-specific, only this way of provoking it.
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod does not restrict directory writes on Windows")
+	}
+
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.json")
 
