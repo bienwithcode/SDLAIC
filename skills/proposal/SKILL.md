@@ -18,11 +18,11 @@ The proposal is the **scope contract** — why the change is needed and, above a
 
 ### Step 1: Absorb the input
 
-Read `context.md` (if present) and the originating ticket. Identify the problem, its business rationale, and the affected area. Run a codebase-research query to ground the affected-area claims in real paths — do not assume.
+Read `context.md` — especially `## Candidate Scopes` (the decomposed scope set with the `🌟 RECOMMENDED` marker and any `REFUTED` tags) — and the originating ticket. Identify the problem, its business rationale, and the affected area. Run a codebase-research query to ground the affected-area claims in real paths — do not assume.
 
-### Step 2: Draft the IN/OUT-OF-SCOPE boundary first
+### Step 2: Decide the gated IN/OUT-OF-SCOPE boundary
 
-Before writing prose, enumerate the boundary. Every item a reader might assume is included must be explicitly placed IN or OUT. Ambiguity here is the primary cause of generative overreach.
+This is where scope is **decided and gated** — `new` only proposed candidates; the gate lives here. Start from `context.md > ## Candidate Scopes`: promote the recommended scope(s) (`🌟 RECOMMENDED`) to **IN**; every other candidate becomes **OUT** with a reason (`DEFERRED` / `OUT-OF-SCOPE` / `DUPLICATE` / `REFUTED` / `WONTFIX`). `grillme` has already pressure-tested the recommendation and the `REFUTED` dismissions — honor or overturn them here with justification. Before writing prose, enumerate the boundary; every item a reader might assume is included must be explicitly placed IN or OUT. Ambiguity here is the primary cause of generative overreach.
 
 ### Step 3: Write `proposal.md`
 
@@ -39,9 +39,9 @@ Request the template guidance, then write to `$(sdlaic path change --change <nam
 
 ## Scope
 
-| IN SCOPE | OUT OF SCOPE |
+| IN SCOPE | OUT OF SCOPE (with reason) |
 |----------|--------------|
-| [thing this change will do] | [related thing it will deliberately NOT do] |
+| [thing this change will do — promoted from a 🌟 candidate in context.md] | [related thing it will deliberately NOT do — DEFERRED / OUT-OF-SCOPE / DUPLICATE / REFUTED / WONTFIX: <one-line why>] |
 | ... | ... |
 
 ## What Changes
@@ -85,7 +85,8 @@ Do not advance to the spec phase yourself. Emit a summary and hand off (see Hand
 | Mistake | Fix |
 |---------|-----|
 | Mixing "how" into the proposal | Proposal is scope (why/what). Keep architecture in `design.md`. |
-| Vague or absent OUT-OF-SCOPE column | Every plausible-but-excluded item must be named OUT. This is the anti-overreach control. |
+| Vague or absent OUT-OF-SCOPE column | Every plausible-but-excluded item must be named OUT (with a reason). This is the anti-overreach control. |
+| Re-decomposing the ticket instead of using `context.md > ## Candidate Scopes` | `new` already decomposed the ticket into candidates + a 🌟 recommendation. Start there: promote 🌟 to IN, the rest to OUT with reasons. Don't re-derive the candidate set. |
 | Writing spec scenarios here | Behavioral GIVEN/WHEN/THEN belong in `skills/spec`. |
 | Advancing to spec without the gate | The proposal gate must be `approved`/`skipped` first. |
 

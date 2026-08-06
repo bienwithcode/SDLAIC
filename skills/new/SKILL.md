@@ -36,7 +36,7 @@ First, classify the user's input:
   # Get all comments (may contain clarifications, decisions, acceptance criteria)
   jira issue comment list <KEY> --plain
   ```
-  From the output, extract issue metadata and verbatim description/comments. Do NOT proceed without context.
+  From the output, extract issue metadata (key, summary, type, status, priority, URL) plus the full description and all comments as raw source material for scope extraction in Step 4. The description and comments are SOURCES to decompose into candidate scopes — they are NOT pasted wholesale into context.md. Do NOT proceed without context.
   
 - **File Path**: If the user provides a local file path or reference (e.g. `/path/to/file.md` or similar absolute/relative path format):
   1. Use a file reading tool to check if the file exists and is readable.
@@ -90,7 +90,7 @@ The Gap Manifest maps each failed checklist item to the grillme surface(s) that 
 | Dependencies / Blockers | Failure modes, Rollback | 2 | What happens if a dependency isn't ready or breaks mid-deploy |
 | Open Questions | (assign per question) | 1 | For each open question: create a separate row, assign nearest catalog surface based on content; default to Failure modes if unclear |
 
-The result is recorded in `context.md` under `## Ticket Quality Assessment` and `## Gap Manifest` in Step 5.
+The result is recorded in `context.md` under `## Ticket Quality Assessment` and `## Gap Manifest` in Step 6.
 
 If quality is HIGH, this step passes silently — do not bother the user.
 
@@ -127,7 +127,7 @@ A lightweight, evidence-grounded extraction so `grillme` can anchor questions to
 
 **Hard provenance bar.** Every actor and every use case must cite either a verbatim ticket/resolved description quote OR a `file:line` symbol from the Step 2 code research. No source → drop the row.
 
-**Skip rule.** If the change is cosmetic / docs-only / test-only / dependency bump / pure refactor with no behavior change, write `N/A: <one-line reason>` for the whole section in Step 5 and proceed. Do not force actors onto trivial changes.
+**Skip rule.** If the change is cosmetic / docs-only / test-only / dependency bump / pure refactor with no behavior change, write `N/A: <one-line reason>` for the whole section in Step 6 and proceed. Do not force actors onto trivial changes.
 
 **Two-pass extraction:**
 
@@ -176,7 +176,54 @@ Gap Manifest Cross-link:
 
 This step's output is consumed downstream by `grillme` (anchors questions) and the `proposal` / `spec` / `design` skills (inform scope, behavior, and design trade-offs). It is **not** copied into `spec.md`.
 
-### Step 4: Initialize SDLAIC Change
+### Step 4: Scope Extraction & Recommendation (one change = one PR)
+
+One SDLAIC change = one PR. A ticket often bundles multiple issues, hypotheses, and follow-ons. Do NOT carry the whole ticket into `context.md`. Decompose it into **candidate scopes** and **recommend** which to do first. `new` does NOT make the final IN/OUT decision — that is decided and **gated in `proposal.md`** (after `grillme` challenges the candidates). Here you only record the candidate set + a recommendation; nothing is silently dropped.
+
+**Inputs:** the resolved description + comments (Step 1.1), the research findings (Step 2 / Step 3.1), and the extracted actors (Step 3.2).
+
+#### Step 4.1: Extract candidate scopes
+
+Re-read the description, every comment, and the investigation output as a single search space. Extract each distinct issue, hypothesis, requested behavior, or proposed fix as a separate candidate scope. A candidate scope is anything that could plausibly be its own PR.
+
+For each candidate scope, determine:
+- **Scope** — a short noun phrase naming the issue/behavior (e.g., "Roster leaks cross-team members", "Add export-to-CSV button").
+- **Root cause** — the underlying mechanism, if known. Cite `file:line` from research when one exists; otherwise quote the ticket/comment that asserts it.
+- **Impact** — who/what is affected and how severely.
+- **Source** — where it came from: `[ticket body]`, `[comment: <author> <date>]`, `[research: file:line]`, or `[investigation: <note>]`.
+- **Disposition** — `consider` by default; `REFUTED` if a later comment or research disproves it (cite the disproof). Step 4.2 upgrades the strongest one(s) to `🌟 RECOMMENDED`.
+
+**Refuted hypotheses.** A common case: the ticket body or an early comment proposes a cause or fix that a later comment or the codebase research disproves. Keep these as candidate scopes but tag them `REFUTED` with the disproof citation. They are high-value signal — they record a dead-end the team already ruled out, so a future agent does not re-walk it.
+
+**Provenance bar.** Every candidate scope must cite its source. No source → drop it. Do not invent scopes from "what might be wrong."
+
+**Caps.** Aim for the real set; merge near-duplicates. If extraction yields > 10 candidates, group related ones and note the grouping.
+
+#### Step 4.2: Present candidates and recommend
+
+Present the candidate scopes as a numbered list or table showing the fields (scope | root cause | impact | source | disposition). Use whichever prompt or confirmation capability your runtime provides — do not assume a specific tool name.
+
+**Recommend a primary scope.** Do NOT present the list neutrally — mark the scope (or small set) you recommend for THIS change with `🌟 RECOMMENDED` and a one-line rationale grounded in **impact × readiness × risk**: prefer the scope that is high-value, ready to fix now, and low-risk (e.g., "🌟 RECOMMENDED: bundleID leak — live defect, ~1-line fix, highest value-per-hour, reversible"). The recommendation is a suggestion, not a decision.
+
+Frame the question explicitly:
+
+> Here are the candidate scopes I extracted from the ticket, comments, and investigation. One SDLAIC change = one PR. 🌟 = my recommendation. Confirm the focus for THIS change (it informs the change name). The formal IN/OUT boundary is decided later in `proposal.md`, after `grillme` challenges these candidates — so this is a recommendation, not the final scope decision.
+>
+> 🌟 1. <scope> — <root cause> — <impact> — <source>  (recommended: <one-line reason>)
+> 2. <scope> — <root cause> — <impact> — <source>  (<disposition>)
+
+Rules:
+- Confirm a focus with the user to derive the change name — typically the recommended scope(s). A typical change has 1–3 in-scope scopes.
+- If the user wants everything, flag that large multi-scope tickets usually want splitting into multiple SDLAIC changes.
+- If the user adds a scope NOT in the candidate list, add it with source `[user]` and disposition `consider`.
+- Always include a recommendation with grounded rationale, even if the user is likely to override — a neutral list with no steer gives them nothing to react to.
+- Do NOT record a final IN/OUT decision or "not-selected with reasons" here — that is `proposal`'s gated job. Record only the candidate set + dispositions + recommendation in `context.md`.
+
+#### Step 4.3: Prune dependent extractions
+
+If any Actor or Use Case extracted in Step 3.2 belongs exclusively to a candidate the recommendation steers away from (a `REFUTED` or clearly lower-priority scope), drop or relocate that row before writing `context.md` in Step 6. Actors and use cases should track the recommended focus — but keep it light, since the final IN/OUT line is settled in `proposal`.
+
+### Step 5: Initialize SDLAIC Change
 
 ```bash
 sdlaic new change "<change-name>"
@@ -185,41 +232,35 @@ sdlaic new change "<change-name>"
 Derive the change name:
 - From Jira summary if available (convert to kebab-case)
 - From user description if no Jira key
-- Confirm with user **after** reviewing the research summary — research findings may reveal a scope adjustment that warrants a different name
+- Confirm with user **after** reviewing the research summary AND the Step 4 recommendation — the name must reflect the recommended focus, not the whole ticket
 
-### Step 5: Save Jira Metadata (if key provided)
+### Step 6: Write context.md
 
-If a Jira key was provided, save the gathered context to `context.md`:
+Write the gathered context (ticket or non-ticket source) to `context.md` using the template below. Substitute the candidate scopes (with dispositions + 🌟 recommendation) from Step 4 and the actors from Step 3.2:
 
 ```markdown
 # Change Context
 
-## Jira
+## Ticket
+- Source: <Jira key OR "Text input" OR "File: <path>" OR "URL: <url>">
 - Key: <KEY>
-- Summary: <summary>
-- Type: <type>
-- Priority: <priority>
-- Status: <status>
-- URL: https://<your-domain>.atlassian.net/browse/<KEY>
+- Title: <summary>
+- Type: <type>  ·  Status: <status>  ·  Priority: <priority>
+- URL: https://<domain>.atlassian.net/browse/<KEY>
+- Linked issues: <list with relationship + status, or "None">
 
-## Linked Issues
-<list of linked issues with relationship + status, or "None">
-
-## Dependencies / Blockers
-<extracted from the ticket's Dependencies section, or "None noted in ticket">
+## Candidate Scopes
+<!-- Decomposed from ticket + comments + research (new Step 4). 🌟 = recommended scope(s); REFUTED = hypothesis the investigation disproved (cite disproof). The formal IN/OUT boundary is DECIDED and GATED in proposal.md (after grillme) — this is the candidate set + recommendation, not the decision. -->
+| # | Scope | Root cause | Impact | Source | Disposition |
+|---|-------|------------|--------|--------|-------------|
+| 1 | <noun phrase> | <mechanism + file:line OR ticket quote> | <who/what, severity> | [ticket body] / [comment: author date] / [research: file:line] / [investigation: note] | 🌟 RECOMMENDED / REFUTED (cite disproof) / consider |
 
 ## Open Questions ⚠️
-<extracted verbatim from the ticket's Open Questions section, or "None noted in ticket">
+<extracted from the source's Open Questions section, or "None noted in source">
 <!-- grillme MUST address each item here -->
 
-## Ticket Description (verbatim)
-<paste the raw description from `jira issue view` output verbatim — preserve
- every section (Description, Acceptance Criteria, Technical Approach, Out of
- Scope, etc.) exactly as written. Do NOT reformat, merge, drop, or invent
- sections. If the ticket author wrote "## Foo", the output here must have "## Foo".>
-
-## Key Comments
-<extracted decisions and clarifications from comments, or "No comments">
+## Dependencies / Blockers
+<extracted from the ticket, or "None noted in source">
 
 ## Ticket Quality Assessment
 - Level: HIGH | MEDIUM | LOW
@@ -263,13 +304,15 @@ If a Jira key was provided, save the gathered context to `context.md`:
 <!-- Empty when ## Gap Manifest is empty. Otherwise one row per gap. -->
 | Gap | Affected Actor(s) | Affected Use Case(s) |
 |-----|-------------------|---------------------|
+
+Target branch: <branch>
 ```
 
-If no Jira key was provided and the user gave a description, save that instead under `## User Description`.
+For non-Jira input (text / file / URL), set `Source:` in `## Ticket` accordingly and route the resolved description through scope extraction in Step 4 — do not paste it verbatim.
 
 **`context.md` is always written**, even when no Jira key is provided. This file must exist for grillme to check the Gap Manifest.
 
-### Step 6: Commit Initialized Artifacts
+### Step 7: Commit Initialized Artifacts
 
 Stage and commit the SDLAIC change directory inside the **target project's repository**:
 
@@ -285,7 +328,7 @@ Commit prefix fallback chain (use first applicable):
 
 This is a stable checkpoint. Future agents can roll back here if direction changes.
 
-### Step 7: Handoff
+### Step 8: Handoff
 
 ```
 Change "<change-name>" initialized.
@@ -295,26 +338,29 @@ Change "<change-name>" initialized.
 - Actors extracted: {N} (or N/A — trivial change)
 - Use cases extracted: {N total}
 
-Next: Run grillme. Pay special attention to the `## Open Questions ⚠️` section,
-`## Gap Manifest`, and `## Actors & Use Cases` in context.md — grillme will treat
-every row in the manifest as a mandatory surface, and will anchor each question
-to a specific (Actor, Use Case) when that section is populated.
+Next: Run grillme. Pay special attention to `## Candidate Scopes` (the `🌟 RECOMMENDED`
+marker + any `REFUTED` tags), `## Open Questions ⚠️`, `## Gap Manifest`, and
+`## Actors & Use Cases` in context.md — grillme will pressure-test the candidate set
+and the recommendation's rationale, treat every row in the manifest as a mandatory
+surface, and anchor each question to a specific (Actor, Use Case). After grillme,
+`proposal` writes the gated IN/OUT boundary in `proposal.md`.
 ```
 
 ## Output Artifacts
 
 - `$(sdlaic path change --change <change-name>)/` — change directory created by SDLAIC
-- `$(sdlaic path change --change <change-name>)/context.md` — Jira + research context (always written; contains Gap Manifest when quality is MEDIUM/LOW + Option C, and `## Actors & Use Cases` with populated tables or `N/A` for trivial changes)
+- `$(sdlaic path change --change <change-name>)/context.md` — curated scope analysis from the ticket + research (always written; contains `## Candidate Scopes` with a `🌟 RECOMMENDED` marker + `REFUTED` tags — the gated IN/OUT decision lives in `proposal.md`, not here — plus Gap Manifest when quality is MEDIUM/LOW + Option C, and `## Actors & Use Cases` with populated tables or `N/A` for trivial changes)
 
 ## Verification
 
 - [ ] SDLAIC change directory exists
 - [ ] Research Summary was output before handoff
 - [ ] User confirmed the change name
-- [ ] If Jira key provided: `context.md` exists with ticket description and key comments
-- [ ] `context.md > ## Ticket Description (verbatim)` contains the description as-written, with no section dropped or restructured
-- [ ] `context.md > ## Open Questions ⚠️` exists (with content or "None noted in ticket")
-- [ ] `context.md > ## Dependencies / Blockers` exists (with content or "None noted in ticket")
+- [ ] A `🌟 RECOMMENDED` scope was presented with a grounded one-line rationale (impact × readiness × risk)
+- [ ] `context.md > ## Candidate Scopes` is a COMPLETE table — every issue/hypothesis in the ticket decomposed, each row sourced, with a Disposition column; ≥1 row marked `🌟 RECOMMENDED` (with grounded rationale) and any `REFUTED` row citing its disproof
+- [ ] `context.md` records NO final IN/OUT decision — it states the boundary is decided+gated in `proposal.md` (after grillme). Candidate set + recommendation only.
+- [ ] `context.md > ## Open Questions ⚠️` exists (with content or "None noted in source")
+- [ ] `context.md > ## Dependencies / Blockers` exists (with content or "None noted in source")
 - [ ] `context.md > ## Ticket Quality Assessment` exists with Level + Checklist + Missing items handled by
 - [ ] `context.md > ## Gap Manifest` exists (populated when quality is MEDIUM/LOW + Option C; empty table rows otherwise)
 - [ ] `context.md > ## Actors & Use Cases` exists (populated tables OR explicit `N/A: <reason>` for trivial changes)
@@ -328,12 +374,16 @@ to a specific (Actor, Use Case) when that section is populated.
 
 | Mistake | Fix |
 |---------|-----|
-| Fetching only the description, not comments | Comments often contain acceptance criteria and decisions. Always fetch both. |
+| Fetching only the description, not comments | Comments often contain the real scope, refuted hypotheses, and decisions. Always fetch both — comments are a primary source for Step 4 scope extraction. |
 | Skipping code research | Research prevents rework. Always run it. |
 | Creating the change before confirming the name | Always confirm with the user first. |
 | Proceeding without any context | If Jira fetch fails and user can't provide context, STOP. Don't guess. |
 | Ignoring the project path | Research without project scope returns irrelevant results. Ask which project. |
-| Reformatting the ticket description into an agent-chosen section hierarchy | Paste the raw `jira issue view` description verbatim under `## Ticket Description (verbatim)`. Do not invent your own sections, do not merge, do not drop. Open Questions, Dependencies, AC, etc. must all survive intact. |
+| Dumping the whole ticket body + comments verbatim into `context.md` | Decompose into candidate scopes (Step 4.1) with a 🌟 recommendation. `context.md` holds the candidate set + recommendation only — the gated IN/OUT decision is `proposal`'s job, not here. |
+| Making the final IN/OUT scope decision in `new` | Don't. `new` recommends; `proposal` decides (and is grilled + gated). Recording a final In/Out here creates a second, un-gated source of truth that drifts from `proposal.md`. |
+| Silently dropping a candidate from the `## Candidate Scopes` table | Every issue/hypothesis in the ticket must appear as a row (tag `REFUTED` if disproved). The table is the complete record; the IN/OUT *split* happens later in `proposal`. |
+| Losing the pinned code anchor when distilling a candidate | Every candidate row keeps root cause → `file:line` where known. Distillation removes prose, not evidence — grillme, proposal, spec, and review all need the anchor. |
+| Presenting candidate scopes neutrally with no recommendation | Always mark a `🌟 RECOMMENDED` scope with a grounded rationale (impact × readiness × risk). A neutral list gives the user nothing to react to — the recommendation is a suggestion they can override. |
 | Skipping the Ticket Quality Check because the ticket "looks fine" | Always run the 6-item checklist in Step 1.2. The cost is seconds; the cost of a missed gap is rework downstream (gap discovered during manual testing post-review). |
 | Listing "User" / "Admin" as generic actors with no citation | Drop. Either cite the ticket's exact wording (`[ticket: "..."]`) or description (`[description: "..."]`) or cite the code symbol (`[code: <file:line> <path/to/file>]`). Generic uncited actors are exactly what the provenance bar exists to block. |
 | Inventing actors from "what users might want" | Provenance bar. No source → no actor. If the change introduces a new actor type, tag `[NEW SURFACE]` on the use case rather than fabricating a citation. |
