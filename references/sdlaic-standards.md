@@ -68,7 +68,7 @@ without both.
 
 | Phase | Required Artifact | Gate | Purpose |
 |-------|------------------|------|---------|
-| (init) | `context.md` (optional) | — | Ticket + research summary |
+| (init) | `context.md` (optional) | — | Candidate scopes (+ recommendation), research summary, actors & use cases |
 | PROPOSED | `proposal.md` | proposal | Scope contract (IN/OUT-OF-SCOPE table) |
 | SPECIFIED | `specs/<capability>/spec.md` | spec:<capability> | Formal GIVEN/WHEN/THEN requirements (one gate per capability, if user-facing) |
 | DESIGNED | `design.md` | design | Technical architecture |
@@ -80,7 +80,7 @@ without both.
 
 ```
 $(sdlaic path change --change <change-name>)/
-├── context.md                          # Optional: ticket + research context
+├── context.md                          # Optional: candidate scopes + research context
 ├── proposal.md                         # Scope contract — written 1st
 ├── specs/                              # Written 2nd (if user-facing), before design
 │   └── <capability-name>/

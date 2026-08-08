@@ -74,9 +74,9 @@ Gate verdicts are stored **outside your repo** (see [Gate State](#gate-state)), 
 | Skill | Phase | What It Does |
 |-------|-------|-------------|
 | **enforcer** | Every turn | Routes to the correct phase from artifact presence **and** gate status. No skipping, no advancing past a failed/pending gate. |
-| **new** | Init | Fetches ticket context, runs codebase research, initializes a change → `context.md` |
+| **new** | Init | Decomposes the ticket into candidate scopes (+ a `🌟` recommendation), runs codebase research, initializes a change → `context.md` |
 | **grillme** | Grill (before every draft) | Parameterized Socratic challenge — loads the phase's grill checklist, asks tough questions one at a time; resolutions go in the artifact's *Challenge & Resolution Log* |
-| **proposal** | Scope (1A) | Business scope with an explicit IN/OUT-OF-SCOPE contract → `proposal.md` |
+| **proposal** | Scope (1A) | Owns the gated IN/OUT-OF-SCOPE decision (promotes recommended candidates) → `proposal.md` |
 | **spec** | Behavior (1B) | Formal GIVEN/WHEN/THEN requirements → `specs/<capability>/spec.md` |
 | **design** | Architecture (2) | Input-boundary validation, subsystem boundaries, DRY reuse → `design.md` |
 | **plan** | Planning (3) | Ordered TDD tasks grouped by subsystem milestone → `tasks.md` |
@@ -95,7 +95,7 @@ CLI where that is — `sdlaic path changes` — rather than assuming a location:
 
 ```
 $(sdlaic path change --change <change-name>)/
-├── context.md           # Ticket description, research summary, actors & use cases
+├── context.md           # Candidate scopes (+ recommendation), research summary, actors & use cases
 ├── proposal.md          # Scope contract: why, IN/OUT-OF-SCOPE, impact
 ├── specs/               # Behavioral requirements (if user-facing)
 │   └── <capability>/
