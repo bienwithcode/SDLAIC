@@ -1,6 +1,6 @@
 {
   "name": "sdlaic",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "SDLC + AI — phase-gated development workflow enforcer for Gemini CLI.",
   "skills": [
     "enforcer",
@@ -11,6 +11,7 @@
     "plan",
     "grillme",
     "review",
+    "write-pr-description",
     "apply",
     "brainstorm"
   ],

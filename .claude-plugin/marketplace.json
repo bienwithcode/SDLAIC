@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "bienwithcode",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "SDLAIC — phase-gated development workflow enforcer for Claude Code",
   "owner": {
     "name": "bienwithcode"
@@ -10,7 +10,7 @@
     {
       "name": "sdlaic",
       "source": "./",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "description": "SDLC + AI — phase-gated development workflow enforcer for Claude Code"
     }
   ]
