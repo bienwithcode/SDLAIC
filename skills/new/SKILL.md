@@ -30,13 +30,24 @@ The user may provide:
 First, classify the user's input:
 - **Jira Key**: If a Jira key is provided (e.g., `JIRA-123`), fetch the full ticket context:
   ```bash
-  # Get description, status, priority, assignee, labels
+  # Description, status, priority, assignee, labels — and the comment COUNT in the header
   jira issue view <KEY> --plain
 
-  # Get all comments (may contain clarifications, decisions, acceptance criteria)
-  jira issue comment list <KEY> --plain
+  # ALL comments. Bare `--plain` renders only the LATEST comment.
+  # Pass an explicit high count; there is no `jira issue comment list` subcommand.
+  jira issue view <KEY> --comments 50 --plain
   ```
-  From the output, extract issue metadata (key, summary, type, status, priority, URL) plus the full description and all comments as raw source material for scope extraction in Step 4. The description and comments are SOURCES to decompose into candidate scopes — they are NOT pasted wholesale into context.md. Do NOT proceed without context.
+
+  **Comment completeness is mandatory — verify it, do not assume it.** The header of the first
+  command reports the true count (e.g. `💭 4 comments`). Count the comments actually returned by the
+  second command and compare.
+
+  - Counts match → proceed.
+  - Counts differ → **HALT and say so loudly.** Re-run with a higher `--comments` value. Silent
+    truncation is indistinguishable from a thin ticket, and the missing comments are usually where
+    the investigation, the `file:line` anchors, and the scope decision live.
+
+  From the output, extract issue metadata (key, summary, type, status, priority, URL, **reporter**, **assignee**) plus the full description and all comments as raw source material for Step 4. Reporter and assignee are needed by Step 4.0. The description and comments are SOURCES to decompose into candidate scopes — they are NOT pasted wholesale into context.md. Do NOT proceed without context.
   
 - **File Path**: If the user provides a local file path or reference (e.g. `/path/to/file.md` or similar absolute/relative path format):
   1. Use a file reading tool to check if the file exists and is readable.
@@ -62,11 +73,21 @@ Assess the completeness of the resolved description (from Jira issue description
 - [ ] **Dependencies / Blockers** — noted explicitly, or genuinely none
 - [ ] **Open Questions / Unknowns** — listed explicitly, or fully resolved
 - [ ] **Input Resolved** — if a file path or URL was provided, it was successfully resolved/read and its content is loaded as the description
+- [ ] **Evidence Freshness** — every quantitative claim (row counts, affected-user figures, date ranges, "N% of orders") is reproducible against a **live** source, and the source + `as-of` date are stated. Fails if figures come from a stale or sanitised snapshot, or if no source/date is given at all.
+
+**Why Evidence Freshness is separate.** The other six items test whether a ticket is *well-written*.
+This one tests whether its evidence is *current and verifiable* — an orthogonal axis. A ticket can be
+immaculately written and still rest on numbers nobody can reproduce. When it fails, record in the
+Gap Manifest: the snapshot date, and **which columns/tables are unusable and why** (e.g. sanitiser
+NULLs the column the sizing query needs). A scope that cannot be sized from live data gets
+`Readiness: needs-sizing` in Step 4.1 — this check is where that value comes from.
 
 Compute quality:
-- **HIGH** = 6/6 pass
-- **MEDIUM** = 4–5/6
-- **LOW** = ≤ 3/6
+- **HIGH** = 7/7 pass
+- **MEDIUM** = 5–6/7
+- **LOW** = ≤ 4/7
+
+Report the level and the failing axis together — `HIGH`, or e.g. `MEDIUM (evidence-stale)`. "Well-written" and "evidence unreproducible" are both true statements about the same ticket; never let a high score hide an unreproducible figure.
 
 **If MEDIUM or LOW**, present options to the user:
 
@@ -89,6 +110,7 @@ The Gap Manifest maps each failed checklist item to the grillme surface(s) that 
 | Scope Boundary | Scope boundaries | 2 | What is explicitly NOT included, where the change ends |
 | Dependencies / Blockers | Failure modes, Rollback | 2 | What happens if a dependency isn't ready or breaks mid-deploy |
 | Open Questions | (assign per question) | 1 | For each open question: create a separate row, assign nearest catalog surface based on content; default to Failure modes if unclear |
+| Evidence Freshness | ROI / impact, Failure modes | 1 | Which figures are unreproducible, the snapshot `as-of` date, which columns/tables are destroyed or unavailable, and what would have to be re-run against live data before the affected scope can be sized |
 
 The result is recorded in `context.md` under `## Ticket Quality Assessment` and `## Gap Manifest` in Step 6.
 
@@ -102,7 +124,21 @@ Run research queries to gather context about the change. Tool selection follows 
    - Run a targeted codebase query on the topic from the resolved description, scoped to `projects/<project>` (or a broader query if the project path is unclear).
    - Look for existing precedents, related configurations, or circular dependencies.
    
-2. **External / Web Research**:
+2. **Prior-art check against existing SDLAIC changes** — mandatory, do not skip:
+   ```bash
+   sdlaic list          # include archived/completed changes, not just active ones
+   ```
+   For each existing change whose name or `proposal.md` touches the same surface as this ticket,
+   read its `proposal.md` (and `design.md` if present). An existing change may already specify —
+   or have already shipped — the remedy you are about to propose.
+
+   Record every hit. In Step 4.1 tag the affected candidate row `⚠ OVERLAPS <change-name>` and cite
+   the artifact (`<change>/proposal.md`). Recommending a scope that a sibling change already
+   designed risks duplicating or silently contradicting gated design work.
+
+   Empty result is valid — record "no overlapping SDLAIC change found" and proceed.
+
+3. **External / Web Research**:
    - If the resolved description mentions any third-party APIs, external libraries, protocols, or services (e.g., "Antigravity provider", external SDKs, or integrations) that are new or have no established local codebase precedents:
      * Perform a web search to find official documentation, API specifications, or known limitations for these technologies.
      * Do not guess or assume how external services behave.
@@ -116,6 +152,8 @@ Empty result is valid — record "no codebase precedent or web documentation fou
 
 Produce a concise summary covering:
 - **What exists (Codebase):** Relevant code, patterns, and architecture found locally.
+- **Existing SDLAIC changes (prior art):** Overlapping changes found by `sdlaic list`, with the artifact that overlaps (`<change>/proposal.md`) and what it already specifies — or "no overlapping SDLAIC change found".
+- **Comment ordering detected:** newest-first / oldest-first, and the comment count verified against the ticket header.
 - **External/Web Findings:** Key findings from web search on external dependencies, services, or new concepts mentioned in the description (with URL citations). If none, state "No external research needed".
 - **What's missing:** Gaps that the change needs to address.
 - **Dependencies:** Other systems or modules this change touches.
@@ -176,52 +214,120 @@ Gap Manifest Cross-link:
 
 This step's output is consumed downstream by `grillme` (anchors questions) and the `proposal` / `spec` / `design` skills (inform scope, behavior, and design trade-offs). It is **not** copied into `spec.md`.
 
-### Step 4: Scope Extraction & Recommendation (one change = one PR)
+### Step 4: Scope Extraction (one change = N capabilities)
 
-One SDLAIC change = one PR. A ticket often bundles multiple issues, hypotheses, and follow-ons. Do NOT carry the whole ticket into `context.md`. Decompose it into **candidate scopes** and **recommend** which to do first. `new` does NOT make the final IN/OUT decision — that is decided and **gated in `proposal.md`** (after `grillme` challenges the candidates). Here you only record the candidate set + a recommendation; nothing is silently dropped.
+A ticket often bundles multiple issues, hypotheses, and follow-ons. Do NOT carry the whole ticket into `context.md`. Decompose it into **candidate scopes**. `new` does NOT make the final IN/OUT decision — that is decided and **gated in `proposal.md`** (after `grillme` challenges the candidates). Here you only record the candidate set; nothing is silently dropped.
+
+**A candidate scope maps to a capability, not to a PR.** One SDLAIC change is already a container for N capabilities:
+
+```
+<change>/
+├── proposal.md                  # 1 — the scope contract
+├── specs/<capability>/spec.md   # N — one per capability, each with its own spec:<capability> gate
+├── design.md                    # 1
+└── tasks.md                     # 1
+```
+
+So a ticket carrying three related defects produces **one** change with three capability specs — not three changes. Splitting into separate changes is the exception, governed by the criteria in Step 4.2, and is decided on **delivery unit**, never on "these are different issues."
 
 **Inputs:** the resolved description + comments (Step 1.1), the research findings (Step 2 / Step 3.1), and the extracted actors (Step 3.2).
 
+#### Step 4.0: Prior Agreement Detection
+
+**Run this BEFORE extraction.** Steps 4.1–4.2 assume a ticket needs *narrowing*. When the ticket already carries a plan someone signed off on, narrowing is the wrong operation — re-opening a settled decision is a defect, not diligence.
+
+1. **Establish comment ordering.** Read the timestamps and state which order the CLI returned (this CLI commonly returns **newest-first**). Never assume chronological order — reading the decision trail backwards inverts which comment supersedes which. State the detected ordering explicitly in the Research Summary.
+
+2. **Scan every comment for approval/decision signals.** Common English markers:
+   `approve` · `agreed` · `proceed` · `go ahead` · `ship it` · `no questions` · `LGTM` · `confirmed` —
+   plus status transitions (→ In Progress) and assignment events.
+
+   **Match intent, not this word list.** Comments are frequently written in the team's working
+   language rather than English, and an approval there carries exactly the same weight. Read every
+   comment for the *act* of settling a decision — assent, sign-off, "go ahead and do it", closing a
+   question rather than opening one — in whatever language it is written in. A missed approval is
+   the single most expensive failure in this step: it silently converts a settled ticket back into
+   an open one.
+
+3. **Resolve *what* was approved.** An approval comment rarely restates the plan. Walk **back** to the nearest preceding comment that proposes one, and treat that proposal as the referent. Approval without a resolvable referent is not an agreement — record it as an open question instead.
+
+4. **Emit an Agreed Scope Set.** Every scope in the referent proposal gets
+   `✅ AGREED [comment: <author>, <date>] "<verbatim approval quote>"` in Step 4.1.
+
+**Authority.** Any commenter's approval counts — but you must **record the author, date, and verbatim quote** on every `AGREED` row so the user can judge authority themselves. Never assert that an approval is authoritative. If the approver is neither the ticket's reporter nor its assignee, append `⚠ approver is neither reporter nor assignee` to the row. You have both names from Step 1.1.
+
+**Transitivity — do not over-extend `AGREED`.** Only scopes explicitly present in the approved referent proposal are `AGREED`. Adjacent or follow-on work mentioned in passing in the same comment (backfills, cleanups, "and we should also…") gets `consider` plus the note `adjacent to agreed scope — not explicitly approved`, and is raised as a question in Step 4.2. Silently inflating an agreement is the same class of error as ignoring one.
+
+**`AGREED` outranks every heuristic.** You may **not** argue against an agreed scope on grounds of impact, effort, or priority. The single permitted move is to surface a **new blocker discovered in Step 2 research** that the approver could not have known about — stated explicitly as such, with its evidence, and still leaving the scope marked `AGREED`.
+
+If no approval signal is found, record `No prior agreement detected` and continue to Step 4.1 normally.
+
 #### Step 4.1: Extract candidate scopes
 
-Re-read the description, every comment, and the investigation output as a single search space. Extract each distinct issue, hypothesis, requested behavior, or proposed fix as a separate candidate scope. A candidate scope is anything that could plausibly be its own PR.
+Re-read the description, every comment, and the investigation output as a single search space. Extract each distinct issue, hypothesis, requested behavior, or proposed fix as a separate candidate scope.
 
 For each candidate scope, determine:
+- **Kind** — `defect` / `recovery` (backfill, repair, audit of already-damaged data) / `safeguard` (prevents recurrence) / `refuted` / `separate-ticket`. Extend the list if a ticket genuinely needs a sixth kind; do not force a bad fit. Only `defect` (and sometimes `safeguard`) rows are candidates for THIS change — the rest are context.
 - **Scope** — a short noun phrase naming the issue/behavior (e.g., "Roster leaks cross-team members", "Add export-to-CSV button").
 - **Root cause** — the underlying mechanism, if known. Cite `file:line` from research when one exists; otherwise quote the ticket/comment that asserts it.
 - **Impact** — who/what is affected and how severely.
 - **Source** — where it came from: `[ticket body]`, `[comment: <author> <date>]`, `[research: file:line]`, or `[investigation: <note>]`.
-- **Disposition** — `consider` by default; `REFUTED` if a later comment or research disproves it (cite the disproof). Step 4.2 upgrades the strongest one(s) to `🌟 RECOMMENDED`.
+- **Readiness** — `ready-now` / `blocked-on-<X>` / `needs-sizing` / `needs-decision`. This is an **observable property of the scope**, not an opinion about it: `needs-sizing` means the data required to size it is unavailable (see the Evidence Freshness check in Step 1.2); `blocked-on-<X>` names the specific blocker.
+- **Disposition** — `✅ AGREED [comment: <author>, <date>] "<quote>"` when Step 4.0 identified it; `REFUTED` when a later comment or research disproves it; otherwise `consider`.
 
-**Refuted hypotheses.** A common case: the ticket body or an early comment proposes a cause or fix that a later comment or the codebase research disproves. Keep these as candidate scopes but tag them `REFUTED` with the disproof citation. They are high-value signal — they record a dead-end the team already ruled out, so a future agent does not re-walk it.
+**No single-winner recommendation.** Do not mark one scope as the recommended one. Ranking collapses independent axes into a single opinion and silently outranks stakeholder agreement. `Readiness` carries the steer instead — it is checkable, and a reader can disagree with it on evidence.
+
+**Refuted hypotheses.** A common case: the ticket body or an early comment proposes a cause or fix that a later comment or the codebase research disproves. Keep these as rows tagged `REFUTED` with the disproof citation. They are high-value signal — they record a dead-end the team already ruled out, so a future agent does not re-walk it. Every `REFUTED` row additionally carries:
+
+- **Boundary** — *what this refutation does NOT close.*
+- **Era/Scope** — the period, subsystem, or data generation the refutation applies to (e.g. "2015–2021 import-created rows, not current checkout code").
+
+An over-broad refutation is worse than no refutation: it retires a live defect by association. If you cannot state the boundary, the refutation is not established — downgrade the row to `consider`.
+
+**Prior art.** If Step 2's `sdlaic list` check found an existing change touching this scope, tag the row `⚠ OVERLAPS <change-name>` and cite the artifact.
 
 **Provenance bar.** Every candidate scope must cite its source. No source → drop it. Do not invent scopes from "what might be wrong."
 
-**Caps.** Aim for the real set; merge near-duplicates. If extraction yields > 10 candidates, group related ones and note the grouping.
+**Caps.** Aim for the real set; merge near-duplicates. **If extraction yields > 10 candidates, grouping by `Kind` is mandatory** — render `defect` first, then the remaining kinds as clearly secondary groups. This reduces *display noise, not row count*: every issue and hypothesis still gets a row. A 30-row ticket that reads as 4 actionable defects plus 26 rows of recorded context is manageable; the same 30 rows presented at equal weight is not.
 
-#### Step 4.2: Present candidates and recommend
+#### Step 4.2: Present candidates and confirm the capability set
 
-Present the candidate scopes as a numbered list or table showing the fields (scope | root cause | impact | source | disposition). Use whichever prompt or confirmation capability your runtime provides — do not assume a specific tool name.
+Present the candidate scopes as a table showing `# | Kind | Scope | Root cause | Impact | Source | Readiness | Disposition`, **grouped by `Kind` with `defect` first**, and within each group sorted `ready-now` before blocked. Use whichever prompt or confirmation capability your runtime provides — do not assume a specific tool name.
 
-**Recommend a primary scope.** Do NOT present the list neutrally — mark the scope (or small set) you recommend for THIS change with `🌟 RECOMMENDED` and a one-line rationale grounded in **impact × readiness × risk**: prefer the scope that is high-value, ready to fix now, and low-risk (e.g., "🌟 RECOMMENDED: bundleID leak — live defect, ~1-line fix, highest value-per-hour, reversible"). The recommendation is a suggestion, not a decision.
+**Confirmation is multi-select.** A change routinely carries several capabilities; a single-select question structurally cannot express that and will silently discard the rest.
 
 Frame the question explicitly:
 
-> Here are the candidate scopes I extracted from the ticket, comments, and investigation. One SDLAIC change = one PR. 🌟 = my recommendation. Confirm the focus for THIS change (it informs the change name). The formal IN/OUT boundary is decided later in `proposal.md`, after `grillme` challenges these candidates — so this is a recommendation, not the final scope decision.
+> Here are the candidate scopes I extracted from the ticket, comments, and investigation.
+> ✅ AGREED = already signed off in the ticket (author + date + quote shown) — these are pre-selected.
+> `Readiness` says how ready each one is; it is not a recommendation.
+> **Select all scopes for THIS change** — each becomes its own `specs/<capability>/spec.md`.
+> The formal IN/OUT boundary is decided later in `proposal.md`, after `grillme` challenges these candidates.
 >
-> 🌟 1. <scope> — <root cause> — <impact> — <source>  (recommended: <one-line reason>)
-> 2. <scope> — <root cause> — <impact> — <source>  (<disposition>)
+> ✅ 1. [defect] <scope> — <root cause> — <impact> — <readiness> — AGREED [<author>, <date>]
+>    2. [defect] <scope> — <root cause> — <impact> — <readiness> — consider
+>    3. [recovery] <scope> — … (context — select only if it belongs in this change)
 
 Rules:
-- Confirm a focus with the user to derive the change name — typically the recommended scope(s). A typical change has 1–3 in-scope scopes.
-- If the user wants everything, flag that large multi-scope tickets usually want splitting into multiple SDLAIC changes.
-- If the user adds a scope NOT in the candidate list, add it with source `[user]` and disposition `consider`.
-- Always include a recommendation with grounded rationale, even if the user is likely to override — a neutral list with no steer gives them nothing to react to.
-- Do NOT record a final IN/OUT decision or "not-selected with reasons" here — that is `proposal`'s gated job. Record only the candidate set + dispositions + recommendation in `context.md`.
+- **Pre-select every `✅ AGREED` scope.** Deselecting one is the user's call, not yours; if they do, record it — a rejected prior agreement is a decision `proposal` must account for.
+- Selected scopes become capabilities in **one** change. Record their order — `ready-now` before blocked — so `tasks.md` sequences a cheap live-defect fix ahead of a scope waiting on a production query.
+- If the user adds a scope NOT in the candidate list, add it with source `[user]`, `Readiness: needs-decision`, disposition `consider`.
+- Do NOT record a final IN/OUT decision or "not-selected with reasons" here — that is `proposal`'s gated job. Record only the candidate set + dispositions + selection.
+
+**When to propose splitting into separate changes.** Only when a criterion below is met — and say which one. Otherwise keep the scopes together as capabilities:
+
+| Split into separate changes | Keep as capabilities in one change |
+|---|---|
+| Different deploy / rollback unit | Ships together |
+| One scope blocked indefinitely (`blocked-on-<X>`, `needs-sizing` with no path to size it) | All `ready-now` |
+| Different system, or a different reviewer must own it | Same code area, same reviewer |
+| Too large for a single PR review | Fits one PR |
+
+"These are different defects" is **not** a split criterion. Splitting a stakeholder-approved scope set across changes also fragments one agreed contract across several `proposal.md` files — do not do it without a criterion above.
 
 #### Step 4.3: Prune dependent extractions
 
-If any Actor or Use Case extracted in Step 3.2 belongs exclusively to a candidate the recommendation steers away from (a `REFUTED` or clearly lower-priority scope), drop or relocate that row before writing `context.md` in Step 6. Actors and use cases should track the recommended focus — but keep it light, since the final IN/OUT line is settled in `proposal`.
+If any Actor or Use Case extracted in Step 3.2 belongs exclusively to a candidate that was **not selected** in Step 4.2 (a `REFUTED` row, or a `separate-ticket` / unselected scope), drop or relocate that row before writing `context.md` in Step 6. Actors and use cases should track the selected capability set — but keep it light, since the final IN/OUT line is settled in `proposal`.
 
 ### Step 5: Initialize SDLAIC Change
 
@@ -229,14 +335,16 @@ If any Actor or Use Case extracted in Step 3.2 belongs exclusively to a candidat
 sdlaic new change "<change-name>"
 ```
 
+**Run this exactly once**, regardless of how many scopes Step 4.2 selected. N selected scopes become N `specs/<capability>/` directories inside this one change (written later by the `spec` skill, one gate each) — they do **not** become N changes. Create additional changes only when Step 4.2's split criteria fired, and say which criterion.
+
 Derive the change name:
 - From Jira summary if available (convert to kebab-case)
 - From user description if no Jira key
-- Confirm with user **after** reviewing the research summary AND the Step 4 recommendation — the name must reflect the recommended focus, not the whole ticket
+- Confirm with user **after** reviewing the research summary AND the Step 4.2 selection — the name must cover the selected capability set, not the whole ticket. When several capabilities share a cause, name the change for the shared cause rather than concatenating them.
 
 ### Step 6: Write context.md
 
-Write the gathered context (ticket or non-ticket source) to `context.md` using the template below. Substitute the candidate scopes (with dispositions + 🌟 recommendation) from Step 4 and the actors from Step 3.2:
+Write the gathered context (ticket or non-ticket source) to `context.md` using the template below. Substitute the candidate scopes (with Kind, Readiness, and dispositions) from Step 4 and the actors from Step 3.2:
 
 ```markdown
 # Change Context
@@ -247,13 +355,33 @@ Write the gathered context (ticket or non-ticket source) to `context.md` using t
 - Title: <summary>
 - Type: <type>  ·  Status: <status>  ·  Priority: <priority>
 - URL: https://<domain>.atlassian.net/browse/<KEY>
+- Reporter: <name>  ·  Assignee: <name>
+- Comments: <N returned> / <N in header> — <verified | ⚠ MISMATCH>
+- Comment ordering detected: <newest-first | oldest-first>
 - Linked issues: <list with relationship + status, or "None">
 
+## Prior Agreement
+<!-- Generated by new Step 4.0. "No prior agreement detected" when the scan found no approval signal. -->
+- Approval: <verbatim quote> — [comment: <author>, <date>] <⚠ approver is neither reporter nor assignee, if applicable>
+- Referent proposal: [comment: <author>, <date>] — <what was proposed, one line>
+- Agreed Scope Set: <scope ids/names explicitly covered by the referent>
+- Adjacent, NOT agreed: <follow-on work mentioned in passing — carried as `consider`>
+
 ## Candidate Scopes
-<!-- Decomposed from ticket + comments + research (new Step 4). 🌟 = recommended scope(s); REFUTED = hypothesis the investigation disproved (cite disproof). The formal IN/OUT boundary is DECIDED and GATED in proposal.md (after grillme) — this is the candidate set + recommendation, not the decision. -->
-| # | Scope | Root cause | Impact | Source | Disposition |
-|---|-------|------------|--------|--------|-------------|
-| 1 | <noun phrase> | <mechanism + file:line OR ticket quote> | <who/what, severity> | [ticket body] / [comment: author date] / [research: file:line] / [investigation: note] | 🌟 RECOMMENDED / REFUTED (cite disproof) / consider |
+<!-- Decomposed from ticket + comments + research (new Step 4). Grouped by Kind, `defect` first; grouping is MANDATORY when > 10 rows. Readiness is an observable property, not a recommendation — there is deliberately no single-winner marker. AGREED outranks every heuristic. The formal IN/OUT boundary is DECIDED and GATED in proposal.md (after grillme) — this is the candidate set, not the decision. -->
+| # | Kind | Scope | Root cause | Impact | Source | Readiness | Disposition |
+|---|------|-------|------------|--------|--------|-----------|-------------|
+| 1 | defect / recovery / safeguard / refuted / separate-ticket | <noun phrase> | <mechanism + file:line OR ticket quote> | <who/what, severity> | [ticket body] / [comment: author date] / [research: file:line] / [investigation: note] | ready-now / blocked-on-<X> / needs-sizing / needs-decision | ✅ AGREED [comment: author, date] "<quote>" / REFUTED (cite disproof) / consider  <⚠ OVERLAPS <change-name>, if applicable> |
+
+### Refuted — boundaries
+<!-- One row per REFUTED candidate. A refutation with no stated boundary is not established. -->
+| # | Refuted claim | Disproof | Boundary — what this does NOT close | Era / Scope |
+|---|---------------|----------|-------------------------------------|-------------|
+
+### Selected for this change
+<!-- From Step 4.2 multi-select. Each row becomes specs/<capability>/spec.md with its own spec:<capability> gate — in THIS change, not a sibling change. Order: ready-now before blocked. -->
+| Order | Capability | Scope | Readiness | Blocked by |
+|-------|------------|-------|-----------|------------|
 
 ## Open Questions ⚠️
 <extracted from the source's Open Questions section, or "None noted in source">
@@ -263,8 +391,9 @@ Write the gathered context (ticket or non-ticket source) to `context.md` using t
 <extracted from the ticket, or "None noted in source">
 
 ## Ticket Quality Assessment
-- Level: HIGH | MEDIUM | LOW
-- Checklist: [Description: Y/N, AC: Y/N, Scope: Y/N, Deps: Y/N, OQ: Y/N, Resolved: Y/N]
+- Level: HIGH | MEDIUM | LOW  <+ failing axis, e.g. "MEDIUM (evidence-stale)">
+- Checklist: [Description: Y/N, AC: Y/N, Scope: Y/N, Deps: Y/N, OQ: Y/N, Resolved: Y/N, Evidence Freshness: Y/N]
+- Evidence provenance: <source + as-of date, e.g. "sanitised dump, as-of 2026-07-23"> — <columns/tables unusable and why, or "all figures reproducible against live data">
 - Missing items handled by: (none / inline-provided / proceed-with-flag)
 
 ## Gap Manifest
@@ -332,36 +461,52 @@ This is a stable checkpoint. Future agents can roll back here if direction chang
 
 ```
 Change "<change-name>" initialized.
-- Ticket/Description Quality: {HIGH|MEDIUM|LOW}
+- Ticket/Description Quality: {HIGH|MEDIUM|LOW}{ + failing axis, e.g. "(evidence-stale)"}
+- Comments: {N}/{N} verified · ordering {newest-first|oldest-first}
+- Prior agreement: {none detected | AGREED set of N, per <author> <date>}
+- Candidate scopes: {N total} across {N} kinds · selected for this change: {N}
+- Prior-art overlaps: {N} (or none)
 - Open Questions captured: {N} (grillme will address each)
 - Dependencies noted: {N}
 - Actors extracted: {N} (or N/A — trivial change)
 - Use cases extracted: {N total}
 
-Next: Run grillme. Pay special attention to `## Candidate Scopes` (the `🌟 RECOMMENDED`
-marker + any `REFUTED` tags), `## Open Questions ⚠️`, `## Gap Manifest`, and
-`## Actors & Use Cases` in context.md — grillme will pressure-test the candidate set
-and the recommendation's rationale, treat every row in the manifest as a mandatory
-surface, and anchor each question to a specific (Actor, Use Case). After grillme,
-`proposal` writes the gated IN/OUT boundary in `proposal.md`.
+Next: Run grillme. Pay special attention to `## Prior Agreement`, `## Candidate Scopes`
+(Kind grouping, Readiness values, `REFUTED` rows + their boundaries, any `⚠ OVERLAPS`),
+`### Selected for this change`, `## Open Questions ⚠️`, `## Gap Manifest`, and
+`## Actors & Use Cases` in context.md — grillme will pressure-test the candidate set,
+treat every row in the manifest as a mandatory surface, and anchor each question to a
+specific (Actor, Use Case). An `✅ AGREED` scope is not up for re-litigation: grillme may
+probe HOW it is done, and may surface a genuinely new blocker, but not WHETHER to do it.
+After grillme, `proposal` writes the gated IN/OUT boundary in `proposal.md`.
 ```
 
 ## Output Artifacts
 
 - `$(sdlaic path change --change <change-name>)/` — change directory created by SDLAIC
-- `$(sdlaic path change --change <change-name>)/context.md` — curated scope analysis from the ticket + research (always written; contains `## Candidate Scopes` with a `🌟 RECOMMENDED` marker + `REFUTED` tags — the gated IN/OUT decision lives in `proposal.md`, not here — plus Gap Manifest when quality is MEDIUM/LOW + Option C, and `## Actors & Use Cases` with populated tables or `N/A` for trivial changes)
+- `$(sdlaic path change --change <change-name>)/context.md` — curated scope analysis from the ticket + research (always written; contains `## Prior Agreement`, `## Candidate Scopes` with Kind + Readiness + dispositions and `### Refuted — boundaries`, `### Selected for this change` — the gated IN/OUT decision lives in `proposal.md`, not here — plus Gap Manifest when quality is MEDIUM/LOW + Option C, and `## Actors & Use Cases` with populated tables or `N/A` for trivial changes)
 
 ## Verification
 
 - [ ] SDLAIC change directory exists
 - [ ] Research Summary was output before handoff
 - [ ] User confirmed the change name
-- [ ] A `🌟 RECOMMENDED` scope was presented with a grounded one-line rationale (impact × readiness × risk)
-- [ ] `context.md > ## Candidate Scopes` is a COMPLETE table — every issue/hypothesis in the ticket decomposed, each row sourced, with a Disposition column; ≥1 row marked `🌟 RECOMMENDED` (with grounded rationale) and any `REFUTED` row citing its disproof
-- [ ] `context.md` records NO final IN/OUT decision — it states the boundary is decided+gated in `proposal.md` (after grillme). Candidate set + recommendation only.
+- [ ] Comment count returned matches the ticket header count (or the mismatch was raised and resolved before proceeding); ordering was detected and stated
+- [ ] `context.md > ## Prior Agreement` exists — either an Agreed Scope Set with author + date + verbatim quote, or `No prior agreement detected`
+- [ ] Every `✅ AGREED` row carries `[comment: <author>, <date>]` + a verbatim quote; rows whose approver is neither reporter nor assignee are flagged
+- [ ] No scope was argued against on impact/effort/priority grounds after being marked `AGREED` (a newly discovered blocker may be surfaced, but the row stays `AGREED`)
+- [ ] `context.md > ## Candidate Scopes` is a COMPLETE table — every issue/hypothesis in the ticket decomposed, each row sourced, with Kind, Readiness, and Disposition columns
+- [ ] No single-winner marker anywhere — the steer is carried by `Readiness`, and every row has a value
+- [ ] Rows are grouped by `Kind` with `defect` first (grouping is MANDATORY when > 10 rows)
+- [ ] Every `REFUTED` row appears in `### Refuted — boundaries` with a stated Boundary and Era/Scope (no boundary → the row should have been downgraded to `consider`)
+- [ ] `sdlaic list` prior-art check was run; any overlap is tagged `⚠ OVERLAPS <change-name>` on the candidate row and cited in the Research Summary
+- [ ] Scope confirmation was **multi-select**, and `### Selected for this change` lists the selected capabilities ordered `ready-now` before blocked
+- [ ] `sdlaic new change` was run **once** — unless a Step 4.2 split criterion fired and was named explicitly
+- [ ] `context.md` records NO final IN/OUT decision — it states the boundary is decided+gated in `proposal.md` (after grillme). Candidate set + selection only.
 - [ ] `context.md > ## Open Questions ⚠️` exists (with content or "None noted in source")
 - [ ] `context.md > ## Dependencies / Blockers` exists (with content or "None noted in source")
-- [ ] `context.md > ## Ticket Quality Assessment` exists with Level + Checklist + Missing items handled by
+- [ ] `context.md > ## Ticket Quality Assessment` exists with Level (+ failing axis) + 7-item Checklist + Evidence provenance + Missing items handled by
+- [ ] Evidence Freshness was assessed: every quantitative claim either traced to a live source, or the snapshot date + unusable columns recorded and the affected scope marked `needs-sizing`
 - [ ] `context.md > ## Gap Manifest` exists (populated when quality is MEDIUM/LOW + Option C; empty table rows otherwise)
 - [ ] `context.md > ## Actors & Use Cases` exists (populated tables OR explicit `N/A: <reason>` for trivial changes)
 - [ ] Every actor row has a citation — `[ticket: "..."]` or `[description: "..."]` or `[code: <file:line> <symbol>]` — no uncited rows
@@ -375,16 +520,28 @@ surface, and anchor each question to a specific (Actor, Use Case). After grillme
 | Mistake | Fix |
 |---------|-----|
 | Fetching only the description, not comments | Comments often contain the real scope, refuted hypotheses, and decisions. Always fetch both — comments are a primary source for Step 4 scope extraction. |
+| Using `jira issue comment list` | No such subcommand (`jira issue comment` has only `add`). Use `jira issue view <KEY> --comments <N> --plain`. |
+| Accepting whatever comments came back | Bare `--plain` renders only the LATEST comment. Compare the count returned against the header count and HALT on mismatch — the missing comments are usually where the decision lives. |
+| Assuming comments are chronological | This CLI commonly returns **newest-first**. Detect ordering from timestamps and state it. Reading the trail backwards inverts which comment supersedes which. |
+| Re-litigating a scope the ticket already approved | Run Step 4.0 first. `AGREED` outranks every heuristic — you may surface a newly discovered blocker, never argue the scope down on impact/effort/priority. |
+| Treating an approval as self-evident | Always record `[comment: <author>, <date>]` + the verbatim quote, and flag when the approver is neither reporter nor assignee. The user judges authority; you supply the evidence. |
+| Extending `AGREED` to follow-on work mentioned in passing | Only scopes in the approved referent proposal are `AGREED`. Adjacent work gets `consider` + `adjacent to agreed scope — not explicitly approved`, raised as a question. Inflating an agreement is as wrong as ignoring one. |
 | Skipping code research | Research prevents rework. Always run it. |
+| Skipping the `sdlaic list` prior-art check | An existing change may already specify — or have shipped — the remedy you are proposing. Tag `⚠ OVERLAPS <change-name>` and cite its artifact. |
 | Creating the change before confirming the name | Always confirm with the user first. |
 | Proceeding without any context | If Jira fetch fails and user can't provide context, STOP. Don't guess. |
 | Ignoring the project path | Research without project scope returns irrelevant results. Ask which project. |
-| Dumping the whole ticket body + comments verbatim into `context.md` | Decompose into candidate scopes (Step 4.1) with a 🌟 recommendation. `context.md` holds the candidate set + recommendation only — the gated IN/OUT decision is `proposal`'s job, not here. |
+| Dumping the whole ticket body + comments verbatim into `context.md` | Decompose into candidate scopes (Step 4.1) with Kind + Readiness + disposition. `context.md` holds the candidate set + selection only — the gated IN/OUT decision is `proposal`'s job, not here. |
 | Making the final IN/OUT scope decision in `new` | Don't. `new` recommends; `proposal` decides (and is grilled + gated). Recording a final In/Out here creates a second, un-gated source of truth that drifts from `proposal.md`. |
 | Silently dropping a candidate from the `## Candidate Scopes` table | Every issue/hypothesis in the ticket must appear as a row (tag `REFUTED` if disproved). The table is the complete record; the IN/OUT *split* happens later in `proposal`. |
+| Cutting rows to make a long table manageable | Group by `Kind` instead (mandatory > 10 rows). The fix for 25 candidates is 25 rows with 4 defects surfaced first — not 8 rows. Reduce display noise, never row count. |
 | Losing the pinned code anchor when distilling a candidate | Every candidate row keeps root cause → `file:line` where known. Distillation removes prose, not evidence — grillme, proposal, spec, and review all need the anchor. |
-| Presenting candidate scopes neutrally with no recommendation | Always mark a `🌟 RECOMMENDED` scope with a grounded rationale (impact × readiness × risk). A neutral list gives the user nothing to react to — the recommendation is a suggestion they can override. |
-| Skipping the Ticket Quality Check because the ticket "looks fine" | Always run the 6-item checklist in Step 1.2. The cost is seconds; the cost of a missed gap is rework downstream (gap discovered during manual testing post-review). |
+| Picking one "best" scope and marking it recommended | There is no single-winner marker. Give every row a `Readiness` value instead — an observable property a reader can check and disagree with, rather than an opinion that silently outranks stakeholder agreement. |
+| Asking the user to pick ONE scope | Confirmation is multi-select. A change carries N capabilities; single-select structurally discards the rest. |
+| Creating one change per defect | N scopes → N `specs/<capability>/` in ONE change. Split only on a Step 4.2 delivery-unit criterion, and name which one. "Different defects" is not a criterion. |
+| Recording a `REFUTED` row with no boundary | State what the refutation does NOT close, plus its era/scope. An over-broad refutation retires live defects by association. No boundary → downgrade to `consider`. |
+| Skipping the Ticket Quality Check because the ticket "looks fine" | Always run the 7-item checklist in Step 1.2. The cost is seconds; the cost of a missed gap is rework downstream (gap discovered during manual testing post-review). |
+| Scoring a ticket HIGH while its numbers are unreproducible | "Well-written" and "evidence-stale" are different axes. Run Evidence Freshness separately and report the failing axis alongside the level. |
 | Listing "User" / "Admin" as generic actors with no citation | Drop. Either cite the ticket's exact wording (`[ticket: "..."]`) or description (`[description: "..."]`) or cite the code symbol (`[code: <file:line> <path/to/file>]`). Generic uncited actors are exactly what the provenance bar exists to block. |
 | Inventing actors from "what users might want" | Provenance bar. No source → no actor. If the change introduces a new actor type, tag `[NEW SURFACE]` on the use case rather than fabricating a citation. |
 | Forcing the Actors & Use Cases section onto a trivial change (typo, dep bump, pure refactor) | Use `N/A: <one-line reason>` for the whole section. The extraction has a cost; skip it when the change has no behavior surface. |

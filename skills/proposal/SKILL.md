@@ -18,11 +18,17 @@ The proposal is the **scope contract** — why the change is needed and, above a
 
 ### Step 1: Absorb the input
 
-Read `context.md` — especially `## Candidate Scopes` (the decomposed scope set with the `🌟 RECOMMENDED` marker and any `REFUTED` tags) — and the originating ticket. Identify the problem, its business rationale, and the affected area. Run a codebase-research query to ground the affected-area claims in real paths — do not assume.
+Read `context.md` — especially `## Prior Agreement`, `## Candidate Scopes` (the decomposed scope set with `Kind`, `Readiness`, `✅ AGREED` / `REFUTED` dispositions and any `⚠ OVERLAPS`), `### Refuted — boundaries`, and `### Selected for this change` — and the originating ticket. Identify the problem, its business rationale, and the affected area. Run a codebase-research query to ground the affected-area claims in real paths — do not assume.
 
 ### Step 2: Decide the gated IN/OUT-OF-SCOPE boundary
 
-This is where scope is **decided and gated** — `new` only proposed candidates; the gate lives here. Start from `context.md > ## Candidate Scopes`: promote the recommended scope(s) (`🌟 RECOMMENDED`) to **IN**; every other candidate becomes **OUT** with a reason (`DEFERRED` / `OUT-OF-SCOPE` / `DUPLICATE` / `REFUTED` / `WONTFIX`). `grillme` has already pressure-tested the recommendation and the `REFUTED` dismissions — honor or overturn them here with justification. Before writing prose, enumerate the boundary; every item a reader might assume is included must be explicitly placed IN or OUT. Ambiguity here is the primary cause of generative overreach.
+This is where scope is **decided and gated** — `new` only proposed candidates; the gate lives here. Start from `context.md > ### Selected for this change`: those capabilities go **IN**; every other candidate becomes **OUT** with a reason (`DEFERRED` / `OUT-OF-SCOPE` / `DUPLICATE` / `REFUTED` / `WONTFIX`). `grillme` has already pressure-tested the candidate set and the `REFUTED` dismissions — honor or overturn them here with justification.
+
+**A `✅ AGREED` scope cannot be moved OUT on your own judgement.** It carries a recorded approval (author + date + quote). Moving one OUT requires either the user's explicit instruction in this session, or a blocker discovered in research that the approver could not have known about — and the reason column must cite which, quoting the original approval. Absent that, an `AGREED` scope is IN.
+
+Carry the ordering from `### Selected for this change` (`ready-now` before blocked) into `## What Changes` — a `needs-sizing` capability must not gate a `ready-now` one.
+
+Before writing prose, enumerate the boundary; every item a reader might assume is included must be explicitly placed IN or OUT. Ambiguity here is the primary cause of generative overreach.
 
 ### Step 3: Write `proposal.md`
 
@@ -41,7 +47,7 @@ Request the template guidance, then write to `$(sdlaic path change --change <nam
 
 | IN SCOPE | OUT OF SCOPE (with reason) |
 |----------|--------------|
-| [thing this change will do — promoted from a 🌟 candidate in context.md] | [related thing it will deliberately NOT do — DEFERRED / OUT-OF-SCOPE / DUPLICATE / REFUTED / WONTFIX: <one-line why>] |
+| [thing this change will do — from `### Selected for this change` in context.md] | [related thing it will deliberately NOT do — DEFERRED / OUT-OF-SCOPE / DUPLICATE / REFUTED / WONTFIX: <one-line why>] |
 | ... | ... |
 
 ## What Changes
@@ -86,7 +92,8 @@ Do not advance to the spec phase yourself. Emit a summary and hand off (see Hand
 |---------|-----|
 | Mixing "how" into the proposal | Proposal is scope (why/what). Keep architecture in `design.md`. |
 | Vague or absent OUT-OF-SCOPE column | Every plausible-but-excluded item must be named OUT (with a reason). This is the anti-overreach control. |
-| Re-decomposing the ticket instead of using `context.md > ## Candidate Scopes` | `new` already decomposed the ticket into candidates + a 🌟 recommendation. Start there: promote 🌟 to IN, the rest to OUT with reasons. Don't re-derive the candidate set. |
+| Re-decomposing the ticket instead of using `context.md > ## Candidate Scopes` | `new` already decomposed the ticket into candidates with Kind + Readiness + dispositions, and recorded the user's multi-select in `### Selected for this change`. Start there: selected → IN, the rest → OUT with reasons. Don't re-derive the candidate set. |
+| Moving a `✅ AGREED` scope OUT because it looks low-value or expensive | Not yours to decide — it carries a recorded approval. Only an explicit user instruction, or a blocker the approver could not have known about, justifies it; cite which, and quote the original approval. |
 | Writing spec scenarios here | Behavioral GIVEN/WHEN/THEN belong in `skills/spec`. |
 | Advancing to spec without the gate | The proposal gate must be `approved`/`skipped` first. |
 
