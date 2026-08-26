@@ -91,11 +91,30 @@ the PR diff, cite it, do not invent or overclaim.
 implementation detail, no file list.>
 
 ## Acceptance Criteria
+<One lead-in sentence: how many AC there are, how they group, and what they were
+compressed from — e.g. "Twelve criteria across three independent defects plus the
+backfill — roughly three per defect, compressed from the specs' 12 requirements
+and 48 scenarios".>
+
+**<Group 1 — the defect/capability stated as the reviewer sees it, not as the fix>**
+
 | # | Acceptance Criterion |
 |---|----------------------|
 | AC1 | <one observable, binary-checkable assertion> |
 | AC2 | <one observable assertion — the negative/absence form counts> |
-| ... | ... |
+
+**<Group 2 — …>**
+
+| # | Acceptance Criterion |
+|---|----------------------|
+| AC3 | ... |
+
+<!-- One bold header + one table per group. Group by defect / capability / spec
+     (one group per `specs/<capability>/spec.md`, plus one for a
+     migration/backfill when there is one). Number AC continuously across groups
+     (AC1…ACn) — never restart per group — so "How the AC Are Met" and "How to
+     verify" stay flat, single-table lookups. A single-capability change with ≤5
+     AC keeps one unlabelled table and no group headers. -->
 
 ## Out of scope (with reason)
 - <adjacent item> — <DEFERRED / PRE-EXISTING / BLOCKED on <ticket> / SEPARATE TICKET <KEY>>: <one-line why>
@@ -139,6 +158,10 @@ lives in Out-of-scope, not here):
 - [ ] **No forbidden words**: `correctly`, `properly`, `appropriately`,
       `should handle`, `works as expected`.
 - [ ] Each AC has a stated **verification method** (Step 3 "How to verify").
+- [ ] AC are **grouped by defect/capability** — one bold header + one table per
+      group, preceded by a lead-in sentence naming the count and the grouping —
+      and numbered **continuously** across groups (AC1…ACn). A single-capability
+      change with ≤5 AC stays one unlabelled table.
 
 **Scope quality gate** — the primary lever for a focused review:
 
