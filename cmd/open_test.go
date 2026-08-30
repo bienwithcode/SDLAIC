@@ -103,6 +103,65 @@ func TestOpenCodex_Stub(t *testing.T) {
 	assert.Contains(t, output, "coming in a later release")
 }
 
+func TestOpenPi_PrintOnly_AlreadyInitialized(t *testing.T) {
+	resetOpenFlags()
+	dir := TempWorkspace(t)
+	oldWd, _ := os.Getwd()
+	require.NoError(t, os.Chdir(dir))
+	defer os.Chdir(oldWd)
+
+	output, err := ExecuteCommand(rootCmd, "open", "pi", "--print", "--no-spawn")
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "pi install git:github.com/bienwithcode/SDLAIC")
+	assert.NotContains(t, output, "not set up yet")
+	assert.NotContains(t, output, "Configured SDLAIC project")
+	assert.NotContains(t, output, "Spawning")
+}
+
+func TestOpenPi_PrintOnly_IncludesSpawn(t *testing.T) {
+	resetOpenFlags()
+	dir := TempWorkspace(t)
+	oldWd, _ := os.Getwd()
+	require.NoError(t, os.Chdir(dir))
+	defer os.Chdir(oldWd)
+
+	output, err := ExecuteCommand(rootCmd, "open", "pi", "--print")
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "pi install git:github.com/bienwithcode/SDLAIC")
+	assert.Contains(t, output, "pi\n")
+}
+
+func TestOpenPi_PrintOnly_ConfiguresWithDefaults(t *testing.T) {
+	resetOpenFlags()
+	home, dir := initFixture(t)
+	homeFlag = home
+
+	output, err := ExecuteCommand(rootCmd, "open", "pi", "--print", "--no-spawn", "--home", home)
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "pi install git:github.com/bienwithcode/SDLAIC")
+	assert.Contains(t, output, "Configured SDLAIC project")
+
+	entry := globalEntry(t, home, dir)
+	assert.Equal(t, filepath.Join(dir, ".sdlaic", "changes"), entry.ChangesDir)
+	assert.Equal(t, domain.WorkflowStrict, entry.Workflow)
+}
+
+func TestOpenPi_PrintOnly_MarketplaceOverride(t *testing.T) {
+	resetOpenFlags()
+	dir := TempWorkspace(t)
+	oldWd, _ := os.Getwd()
+	require.NoError(t, os.Chdir(dir))
+	defer os.Chdir(oldWd)
+
+	output, err := ExecuteCommand(rootCmd, "open", "pi", "--print", "--no-spawn", "--marketplace=myuser/my-sdlaic-fork")
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "pi install git:github.com/myuser/my-sdlaic-fork")
+}
+
 // --- ensureProjectConfigured: prompt behaviour ---
 //
 // Driven through a scripted reader rather than a real TTY, so the interactive

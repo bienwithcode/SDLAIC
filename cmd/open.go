@@ -37,15 +37,29 @@ var openClaudeCmd = &cobra.Command{
 	RunE:  runOpenClaude,
 }
 
+// openPiCmd represents `sdlaic open pi`.
+var openPiCmd = &cobra.Command{
+	Use:   "pi",
+	Short: "Install SDLAIC skills in Pi and spawn Pi agent",
+	RunE:  runOpenPi,
+}
+
 func init() {
 	rootCmd.AddCommand(openCmd)
 	openCmd.AddCommand(openClaudeCmd)
+	openCmd.AddCommand(openPiCmd)
 
 	openClaudeCmd.Flags().BoolVar(&openNoSpawn, "no-spawn", false, "Install only, do not spawn Claude shell")
 	openClaudeCmd.Flags().BoolVar(&openPrint, "print", false, "Print commands to be run, do not execute them")
 	openClaudeCmd.Flags().StringVar(&openMarketplace, "marketplace", "bienwithcode/SDLAIC", "Override default marketplace repository owner/repo")
 	openClaudeCmd.Flags().StringVar(&openChangesDir, "changes-dir", "", "Directory holding change artifacts, for first-time setup")
 	openClaudeCmd.Flags().StringVar(&openWorkflow, "workflow", "", "Override workflow level for auto-init (strict, light, free)")
+
+	openPiCmd.Flags().BoolVar(&openNoSpawn, "no-spawn", false, "Install only, do not spawn Pi session")
+	openPiCmd.Flags().BoolVar(&openPrint, "print", false, "Print commands to be run, do not execute them")
+	openPiCmd.Flags().StringVar(&openMarketplace, "marketplace", "bienwithcode/SDLAIC", "Override default package repository owner/repo")
+	openPiCmd.Flags().StringVar(&openChangesDir, "changes-dir", "", "Directory holding change artifacts, for first-time setup")
+	openPiCmd.Flags().StringVar(&openWorkflow, "workflow", "", "Override workflow level for auto-init (strict, light, free)")
 
 	// Codex stub
 	openCmd.AddCommand(&cobra.Command{
@@ -111,6 +125,53 @@ func runOpenClaude(cmd *cobra.Command, args []string) error {
 		c.Stderr = os.Stderr
 		if err := c.Run(); err != nil {
 			return fmt.Errorf("error running Claude session: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// runOpenPi installs the SDLAIC skills as a pi package (via the git package
+// source, reading the pi manifest in package.json at the repo root) and
+// spawns an interactive pi session.
+func runOpenPi(cmd *cobra.Command, args []string) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("getting current directory: %w", err)
+	}
+
+	if err := ensureProjectConfigured(cmd, cwd, os.Stdin, workspace.IsTerminal()); err != nil {
+		return err
+	}
+
+	installCmd := fmt.Sprintf("pi install git:github.com/%s", openMarketplace)
+
+	if openPrint {
+		fmt.Fprintln(cmd.OutOrStdout(), installCmd)
+		if !openNoSpawn {
+			fmt.Fprintln(cmd.OutOrStdout(), "pi")
+		}
+		return nil
+	}
+
+	// Verify pi is in PATH
+	if _, err := exec.LookPath("pi"); err != nil {
+		return fmt.Errorf("pi CLI is not installed or not in PATH. Please install it first")
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), "Installing SDLAIC skills package from %s...\n", openMarketplace)
+	if err := runShellCmd(partsOf(installCmd)...); err != nil {
+		return fmt.Errorf("failed to install SDLAIC package: %w", err)
+	}
+
+	if !openNoSpawn {
+		fmt.Fprintln(cmd.OutOrStdout(), "Spawning Pi session...")
+		c := exec.Command("pi")
+		c.Stdin = os.Stdin
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
+		if err := c.Run(); err != nil {
+			return fmt.Errorf("error running Pi session: %w", err)
 		}
 	}
 

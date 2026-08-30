@@ -46,6 +46,18 @@ If you do not wish to use the Go CLI, you can register and install the plugin di
 /plugin install sdlaic@bienwithcode
 ```
 
+### Pi
+You can automatically configure and launch the Pi coding agent with the SDLAIC skills using a single command:
+```bash
+sdlaic open pi
+```
+*(This command automatically initializes the workspace if needed, installs the `sdlaic` pi package from GitHub — skills are discovered via the `pi` manifest in `package.json` — and starts a Pi session). Skills are then available as `/skill:enforcer`, `/skill:grillme <phase>`, `/skill:review <phase>`, etc.*
+
+#### Manual / Direct Pi Installation
+```bash
+pi install git:github.com/bienwithcode/SDLAIC
+```
+
 ### Codex
 Support for Codex is coming in a later release.
 

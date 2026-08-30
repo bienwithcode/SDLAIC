@@ -23,7 +23,7 @@ State machine: the CLI does **not** own one. It tracks artifact files (`internal
 
 ### Part 2: Skills & Agents (Markdown)
 
-Skill definitions in `skills/<name>/SKILL.md` — loaded by Claude Code, Codex, Gemini CLI via plugin manifests.
+Skill definitions in `skills/<name>/SKILL.md` — loaded by Claude Code, Codex, Gemini CLI via plugin manifests, and by Pi via the `pi` manifest in `package.json` (`pi install git:github.com/bienwithcode/SDLAIC`, or `sdlaic open pi`).
 
 - `enforcer` — gated pipeline router, runs every agent turn
 - `new` — initialize the change (`context.md`)
