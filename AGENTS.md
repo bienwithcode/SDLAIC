@@ -32,11 +32,11 @@ Skill definitions in `skills/<name>/SKILL.md` — loaded by Claude Code, Codex, 
 - `apply` — execute tasks task-by-task after the tasks gate passes
 - `brainstorm` — **DEPRECATED** (split into `proposal`/`spec`/`design`)
 
-Grill/review checklists are modular: `references/grills/<phase>-grill.md` and `references/reviews/<phase>-audit.md`.
+Grill/review checklists are modular: `skills/grillme/references/grills/<phase>-grill.md` and `skills/review/references/reviews/<phase>-audit.md`.
 
-2 agent personas in `agents/` — `code-quality-reviewer.md`, `compliance-reviewer.md` (invoked by `references/reviews/code-audit.md`).
+2 reviewer personas bundled inside `skills/review/references/personas/` — `code-quality-reviewer.md`, `compliance-reviewer.md` (invoked by the review skill's code audit, `skills/review/references/reviews/code-audit.md`).
 
-Reference docs in `references/` — consumed by skills, not the CLI.
+Reference docs are bundled inside each skill (`skills/<name>/references/`) — every skill is self-contained and portable across agent runtimes (Claude Code, Codex, Gemini CLI, Pi). All in-skill paths are relative to the skill's own directory, per the Agent Skills standard.
 
 ## Essential Commands
 
@@ -85,7 +85,7 @@ No external services needed for tests. Tests use temp directories via `t.TempDir
 - Frontmatter: `name` + `description` fields
 - Sections: `## Core Principle`, `## Process`, `## Output Artifacts`, `## Verification`, `## Common Mistakes`, `## Handoff`
 - Tone: imperative, no hedging. "You may NOT skip phases" not "please don't skip"
-- Cross-references use relative paths: `references/code-research.md`
+- Cross-references use relative paths from the skill's own directory: `references/grills/scope-grill.md`
 
 ### Skill & Agent Authoring Rules
 
@@ -107,7 +107,7 @@ No external services needed for tests. Tests use temp directories via `t.TempDir
 
 Skills are Markdown — no automated tests. Validation is:
 1. `sdlaic validate <change> --strict` — checks artifact format (no placeholders, checkbox syntax in tasks.md)
-2. Manual review against `references/sdlaic-standards.md`
+2. Manual review against `docs/sdlaic-standards.md`
 
 ## Security Considerations
 

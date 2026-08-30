@@ -14,9 +14,5 @@
     "write-pr-description",
     "apply",
     "brainstorm"
-  ],
-  "agents": [
-    "compliance-reviewer",
-    "code-quality-reviewer"
   ]
 }

@@ -11,18 +11,18 @@ Run two independent passes, each in a **clean-context subagent** spawned in a
 single message so they run in parallel. Do NOT perform review analysis in the
 main context — the subagents do all assessment.
 
-### Pass A — Compliance (agent: `agents/compliance-reviewer.md`)
+### Pass A — Compliance (persona: `references/personas/compliance-reviewer.md`)
 
-Extract the markdown body of `agents/compliance-reviewer.md` (everything after the
+Extract the markdown body of `references/personas/compliance-reviewer.md` (everything after the
 YAML frontmatter) as the subagent prompt. Append the change contracts and diff:
 `proposal.md`, `specs/<capability>/spec.md` (if any), `design.md`, `tasks.md`, the
 git diff (`--stat` + full or `--name-only` per the diff-size rule in
 `skills/review`), and the git log. The pass audits whether the implementation
 matches the contract.
 
-### Pass B — Code Quality (agent: `agents/code-quality-reviewer.md`)
+### Pass B — Code Quality (persona: `references/personas/code-quality-reviewer.md`)
 
-Extract the markdown body of `agents/code-quality-reviewer.md` as the subagent
+Extract the markdown body of `references/personas/code-quality-reviewer.md` as the subagent
 prompt. Append the changed files, full diff, and `tasks.md`. The pass runs a
 CURe-style quality assessment (DRY, module boundaries, pattern drift,
 architecture, security, performance, test coverage).

@@ -114,4 +114,5 @@ Return these rows to the main session so the draft skill can embed them. Any
 
 Return the Challenge & Resolution Log rows, then route to the phase's draft skill
 (`proposal` | `spec` | `design` | `plan`). After drafting, the artifact goes to
-`skills/review` with the matching `references/reviews/<phase>-audit.md`.
+`skills/review`, which loads its own matching audit checklist
+(`references/reviews/<phase>-audit.md` bundled with the review skill).

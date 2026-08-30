@@ -243,8 +243,8 @@ section with the full test suite command and manual QA steps.
 
 ## Handoff / Gate
 
-1. **Grill first (strict):** the plan grill (`references/grills/plan-grill.md`) runs before drafting `tasks.md`.
-2. **Review after:** hand `tasks.md` to `skills/review` with the `plan` audit (`references/reviews/plan-audit.md`).
+1. **Grill first (strict):** the plan grill (bundled with `skills/grillme`) runs before drafting `tasks.md`.
+2. **Review after:** hand `tasks.md` to `skills/review` for the `plan` audit (checklist bundled with the review skill).
 3. The reviewer records the verdict via `sdlaic gate set --phase tasks --status <approved|failed> [--verdict ...]` — never inside the repo.
 4. On `approved`, route to `apply`. On `failed`, re-decompose here.
 
