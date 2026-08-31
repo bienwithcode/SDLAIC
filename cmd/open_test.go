@@ -113,7 +113,7 @@ func TestOpenPi_PrintOnly_AlreadyInitialized(t *testing.T) {
 	output, err := ExecuteCommand(rootCmd, "open", "pi", "--print", "--no-spawn")
 	require.NoError(t, err)
 
-	assert.Contains(t, output, "pi install git:github.com/bienwithcode/SDLAIC")
+	assert.Contains(t, output, "pi install -l git:github.com/bienwithcode/SDLAIC")
 	assert.NotContains(t, output, "not set up yet")
 	assert.NotContains(t, output, "Configured SDLAIC project")
 	assert.NotContains(t, output, "Spawning")
@@ -129,7 +129,7 @@ func TestOpenPi_PrintOnly_IncludesSpawn(t *testing.T) {
 	output, err := ExecuteCommand(rootCmd, "open", "pi", "--print")
 	require.NoError(t, err)
 
-	assert.Contains(t, output, "pi install git:github.com/bienwithcode/SDLAIC")
+	assert.Contains(t, output, "pi install -l git:github.com/bienwithcode/SDLAIC")
 	assert.Contains(t, output, "pi\n")
 }
 
@@ -141,7 +141,7 @@ func TestOpenPi_PrintOnly_ConfiguresWithDefaults(t *testing.T) {
 	output, err := ExecuteCommand(rootCmd, "open", "pi", "--print", "--no-spawn", "--home", home)
 	require.NoError(t, err)
 
-	assert.Contains(t, output, "pi install git:github.com/bienwithcode/SDLAIC")
+	assert.Contains(t, output, "pi install -l git:github.com/bienwithcode/SDLAIC")
 	assert.Contains(t, output, "Configured SDLAIC project")
 
 	entry := globalEntry(t, home, dir)
@@ -159,7 +159,7 @@ func TestOpenPi_PrintOnly_MarketplaceOverride(t *testing.T) {
 	output, err := ExecuteCommand(rootCmd, "open", "pi", "--print", "--no-spawn", "--marketplace=myuser/my-sdlaic-fork")
 	require.NoError(t, err)
 
-	assert.Contains(t, output, "pi install git:github.com/myuser/my-sdlaic-fork")
+	assert.Contains(t, output, "pi install -l git:github.com/myuser/my-sdlaic-fork")
 }
 
 // --- ensureProjectConfigured: prompt behaviour ---

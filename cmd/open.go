@@ -131,9 +131,9 @@ func runOpenClaude(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// runOpenPi installs the SDLAIC skills as a pi package (via the git package
-// source, reading the pi manifest in package.json at the repo root) and
-// spawns an interactive pi session.
+// runOpenPi installs the SDLAIC skills as a project-local pi package (via the
+// git package source, reading the pi manifest in package.json at the repo root)
+// and spawns an interactive pi session.
 func runOpenPi(cmd *cobra.Command, args []string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -144,7 +144,10 @@ func runOpenPi(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	installCmd := fmt.Sprintf("pi install git:github.com/%s", openMarketplace)
+	// Project-local install (-l): the methodology is per-project, so the
+	// package belongs in .pi/settings.json — scoped to this repo, shared with
+	// the team, and absent from every unrelated pi session on the machine.
+	installCmd := fmt.Sprintf("pi install -l git:github.com/%s", openMarketplace)
 
 	if openPrint {
 		fmt.Fprintln(cmd.OutOrStdout(), installCmd)
@@ -265,6 +268,15 @@ func ensureProjectConfigured(cmd *cobra.Command, cwd string, in io.Reader, inter
 
 	if err := registerProjectEntry(root, changesDir, workflowLevel); err != nil {
 		return err
+	}
+
+	// Same AGENTS.md bootstrap contract as `sdlaic init`: skip when artifacts
+	// live outside the project, which is the "keep my directory untouched"
+	// signal.
+	if changesDirInsideProject(changesDir, root) {
+		if err := ensureAgentsMdBlock(root); err != nil {
+			return fmt.Errorf("injecting AGENTS.md workflow block: %w", err)
+		}
 	}
 
 	fmt.Fprintf(out, "Configured SDLAIC project %s\n", root)

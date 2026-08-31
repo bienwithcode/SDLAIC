@@ -1,6 +1,6 @@
 {
   "name": "sdlaic",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "SDLC + AI — phase-gated development workflow enforcer for AI coding agents.",
   "keywords": [
     "pi-package"
@@ -12,7 +12,16 @@
   },
   "pi": {
     "skills": [
-      "./skills"
+      "./skills/apply",
+      "./skills/design",
+      "./skills/enforcer",
+      "./skills/grillme",
+      "./skills/new",
+      "./skills/plan",
+      "./skills/proposal",
+      "./skills/review",
+      "./skills/spec",
+      "./skills/write-pr-description"
     ]
   }
 }

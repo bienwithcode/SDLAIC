@@ -1,6 +1,6 @@
 {
   "name": "sdlaic",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "SDLC + AI — phase-gated development workflow enforcer for Claude Code.",
   "skills": "./skills",
   "author": {
