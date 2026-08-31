@@ -107,7 +107,7 @@ No external services needed for tests. Tests use temp directories via `t.TempDir
 
 Skills are Markdown — no automated tests. Validation is:
 1. `sdlaic validate <change> --strict` — checks artifact format (no placeholders, checkbox syntax in tasks.md)
-2. Manual review against `docs/sdlaic-standards.md`
+2. Manual review against `references/sdlaic-standards.md`
 
 ## Security Considerations
 

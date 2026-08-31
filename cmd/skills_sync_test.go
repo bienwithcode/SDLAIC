@@ -86,8 +86,11 @@ func TestSharedRootReferences(t *testing.T) {
 
 	// 1. The shared code-research doc lives once at the root and is not
 	//    duplicated into any skill.
-	if _, err := os.Stat(filepath.Join(root, "references", "code-research.md")); err != nil {
-		t.Errorf("shared doc references/code-research.md missing at plugin root: %v", err)
+	sharedDocs := []string{"references/code-research.md", "references/sdlaic-standards.md"}
+	for _, doc := range sharedDocs {
+		if _, err := os.Stat(filepath.Join(root, doc)); err != nil {
+			t.Errorf("shared doc %s missing at plugin root: %v", doc, err)
+		}
 	}
 
 	personaNames := []string{"compliance-reviewer.md", "code-quality-reviewer.md"}
