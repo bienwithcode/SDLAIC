@@ -3,6 +3,10 @@
   "version": "0.3.0",
   "description": "SDLC + AI — phase-gated development workflow enforcer for Claude Code.",
   "skills": "./skills",
+  "agents": [
+    "./agents/compliance-reviewer.md",
+    "./agents/code-quality-reviewer.md"
+  ],
   "author": {
     "name": "sdlaic",
     "url": "https://github.com/bienwithcode/SDLAIC"

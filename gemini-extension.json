@@ -13,5 +13,9 @@
     "review",
     "write-pr-description",
     "apply"
+  ],
+  "agents": [
+    "compliance-reviewer",
+    "code-quality-reviewer"
   ]
 }

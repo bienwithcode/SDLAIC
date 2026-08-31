@@ -34,9 +34,9 @@ Skill definitions in `skills/<name>/SKILL.md` — loaded by Claude Code, Codex, 
 
 Grill/review checklists are modular: `skills/grillme/references/grills/<phase>-grill.md` and `skills/review/references/reviews/<phase>-audit.md`.
 
-2 reviewer personas bundled inside `skills/review/references/personas/` — `code-quality-reviewer.md`, `compliance-reviewer.md` (invoked by the review skill's code audit, `skills/review/references/reviews/code-audit.md`).
+2 agent personas in `agents/` — `code-quality-reviewer.md`, `compliance-reviewer.md` (invoked by `skills/review/references/reviews/code-audit.md`).
 
-Reference docs are bundled inside each skill (`skills/<name>/references/`) — every skill is self-contained and portable across agent runtimes (Claude Code, Codex, Gemini CLI, Pi). All in-skill paths are relative to the skill's own directory, per the Agent Skills standard.
+Grill/review checklists are bundled inside their skills (`skills/grillme/references/grills/`, `skills/review/references/reviews/`) — those paths are relative to the skill's own directory, per the Agent Skills standard. Shared root docs — `references/code-research.md` (used by `enforcer`, `new`, `grillme`, `review`) and `agents/*.md` — resolve from the plugin root.
 
 ## Essential Commands
 
@@ -85,7 +85,7 @@ No external services needed for tests. Tests use temp directories via `t.TempDir
 - Frontmatter: `name` + `description` fields
 - Sections: `## Core Principle`, `## Process`, `## Output Artifacts`, `## Verification`, `## Common Mistakes`, `## Handoff`
 - Tone: imperative, no hedging. "You may NOT skip phases" not "please don't skip"
-- Cross-references use relative paths from the skill's own directory: `references/grills/scope-grill.md`
+- Cross-references: in-skill paths are relative to the skill's own directory (`references/reviews/code-audit.md`); shared root docs resolve from the plugin root (`references/code-research.md`, `agents/*.md`)
 
 ### Skill & Agent Authoring Rules
 

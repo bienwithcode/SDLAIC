@@ -97,9 +97,9 @@ Store all outputs — they will be passed to subagents in the next step.
 
 ### Step 2: Spawn Parallel Reviewers
 
-Read the two persona definition files bundled with this skill (paths relative to this skill's directory):
-- `references/personas/compliance-reviewer.md`
-- `references/personas/code-quality-reviewer.md`
+Read the two agent definition files from the **plugin root** `agents/` directory (not the skill directory):
+- `agents/compliance-reviewer.md`
+- `agents/code-quality-reviewer.md`
 
 Each file has YAML frontmatter followed by a markdown body. Extract **only the markdown body** (everything after the closing `---` of the frontmatter) — that is the subagent's prompt. The YAML frontmatter is metadata for other platforms and must NOT be included in the prompt.
 
@@ -119,7 +119,7 @@ Use the Agent tool with `subagent_type="general-purpose"`.
 
 Construct the prompt by combining:
 
-1. **Agent instructions** — the markdown body extracted from `references/personas/compliance-reviewer.md` (everything after the YAML frontmatter `---` block)
+1. **Agent instructions** — the markdown body extracted from `agents/compliance-reviewer.md` (everything after the YAML frontmatter `---` block)
 2. **Context data** — append these sections after the agent instructions:
 
 ```
@@ -155,7 +155,7 @@ Use the Agent tool with `subagent_type="general-purpose"`.
 
 Construct the prompt by combining:
 
-1. **Agent instructions** — the markdown body extracted from `references/personas/code-quality-reviewer.md` (everything after the YAML frontmatter `---` block)
+1. **Agent instructions** — the markdown body extracted from `agents/code-quality-reviewer.md` (everything after the YAML frontmatter `---` block)
 2. **Context data** — append these sections after the agent instructions:
 
 ```
@@ -296,7 +296,7 @@ The two verdicts are **independent**. Compliance can APPROVE while Technical REQ
 - [ ] Steps taken section present with max 5 words per step
 - [ ] Both verdicts (Compliance + Technical) are present and independent
 - [ ] No CRITICAL or HIGH severity findings remain unresolved in either assessment
-- [ ] Persona definition files were read from this skill's `references/personas/` directory
+- [ ] Agent definition files were read from agents/ directory
 - [ ] Both subagents spawned in parallel (2 Agent calls in single message)
 - [ ] Each subagent had clean context (no prior chat history)
 
@@ -314,7 +314,7 @@ The two verdicts are **independent**. Compliance can APPROVE while Technical REQ
 | Giving both assessments the same verdict by default | The verdicts are independent. Evaluate each on its own merits. |
 | Running subagents sequentially | Use 2 Agent tool calls in a single message to run both in parallel. |
 | Orchestrator doing review work | The orchestrator only gathers context, spawns agents, and merges output. It does NOT analyze code. |
-| Not reading persona files | Always read the persona definition files from this skill's `references/personas/` directory. The instructions live there, not in SKILL.md. |
+| Not reading agent files | Always read agent definition files from the plugin root agents/ directory. The instructions live there, not in SKILL.md. |
 | Including YAML frontmatter in subagent prompt | Extract only the markdown body after the closing ---. The YAML is platform metadata, not prompt content. |
 | Passing oversized diff to subagents | Check diff line count first. Over 3 000 lines → pass --stat + --name-only only, let agents read files directly. |
 | No fallback when Agent tool fails | If parallel execution fails, fall back to sequential: read agent files and follow instructions directly. |
