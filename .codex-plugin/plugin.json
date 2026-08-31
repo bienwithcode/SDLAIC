@@ -1,6 +1,6 @@
 {
   "name": "sdlaic",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "SDLC + AI — phase-gated development workflow enforcer for Codex.",
   "skills": [
     "enforcer",
