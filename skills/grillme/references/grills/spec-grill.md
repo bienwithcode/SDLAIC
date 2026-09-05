@@ -2,8 +2,8 @@
 
 > Loaded by `skills/grillme` before `skills/spec`. Socratic, one question at a
 > time. Goal: pressure-test behavioral completeness — especially the failure
-> surface — before scenarios are written. Record resolutions in the spec's
-> `## Challenge & Resolution Log`.
+> surface — before scenarios are written. Resolutions are handed back and
+> applied into the spec's requirements/scenarios by the draft skill.
 
 ## Auditor stance
 

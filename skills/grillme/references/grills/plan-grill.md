@@ -2,8 +2,8 @@
 
 > Loaded by `skills/grillme` before `skills/plan`. Socratic, one question at a
 > time. Goal: pressure-test task granularity, TDD sequencing, and milestone
-> integration before `tasks.md` is drafted. Record resolutions in the tasks'
-> `## Challenge & Resolution Log`.
+> integration before `tasks.md` is drafted. Resolutions are handed back and
+> applied into the tasks' milestones by the draft skill.
 
 ## Auditor stance
 

@@ -32,7 +32,6 @@ dropped.
 
 ### Hygiene
 - [ ] Completion section with full test-suite command present.
-- [ ] Challenge & Resolution Log present (or records no grill ran).
 - [ ] No placeholders remain.
 
 ## Verdict
