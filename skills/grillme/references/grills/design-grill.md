@@ -2,8 +2,8 @@
 
 > Loaded by `skills/grillme` before `skills/design`. Socratic, one question at a
 > time. Goal: pressure-test architectural choices against SDLAIC standards before
-> the design is drafted. Record resolutions in the design's
-> `## Challenge & Resolution Log`.
+> the design is drafted. Resolutions are handed back and applied as
+> `## Decisions` rows (or Risks / Open Questions) by the draft skill.
 
 ## Auditor stance
 

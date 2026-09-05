@@ -42,7 +42,7 @@ Request the template guidance (`instructions spec`), then write to
 ## ADDED Requirements
 
 ### Requirement: [Verb statement of what the system MUST do]
-[One paragraph describing the requirement in full.]
+[One paragraph, max 5 sentences. If the requirement needs more, the extra material is a scenario or a table — never more prose.]
 
 #### Scenario: [happy path — descriptive name]
 - **GIVEN** [precondition]
@@ -58,15 +58,24 @@ Request the template guidance (`instructions spec`), then write to
 
 ### Requirement: [existing requirement being modified]
 [What changed and why.]
-
-## Challenge & Resolution Log
-<!-- From the spec grill. State "No grill (workflow: <level>)" if none ran. -->
-| Challenge | Resolution |
-|-----------|------------|
-| [edge case raised] | [scenario added / declared out of scope] |
 ```
 
 Split multiple capabilities into separate `specs/<capability>/spec.md` files.
+
+**Writing rules — size is part of the contract:**
+
+- **One requirement = one paragraph (max 5 sentences).** If it needs more, the
+  extra material is a scenario or a table — never more prose.
+- **Enumerate, don't qualify.** Precedence rules, branching, and case lists
+  belong in ordered tables or enumerations, not in English universal claims
+  (`only`, `never`, `always`, `every`). Tables are auditable; qualifiers drift.
+- **Re-drafts shrink or convert — they do not just add.** Answer a review
+  finding by converting the offending prose into a scenario/table (or deleting
+  it), never by appending a defensive sentence to the same paragraph. Grill
+  resolutions are applied into the content (requirements/scenarios), never
+  into a separate log.
+- **Report the size delta on every re-draft** (e.g. `spec.md: 284 → 271
+  lines`) so unbounded growth is visible to the operator.
 
 ### Step 4: Hand off to the review gate
 
@@ -82,9 +91,10 @@ Do not advance to design yourself.
 - [ ] At least one `specs/<capability>/spec.md` exists and is populated.
 - [ ] Every ADDED requirement has ≥1 happy-path scenario AND ≥1 error/edge scenario.
 - [ ] Scenarios use GIVEN/WHEN/THEN and describe observable behavior, not implementation.
+- [ ] Each requirement is one paragraph (max 5 sentences); enumerations and precedence rules are tables, not prose.
+- [ ] On re-draft, the size delta was reported, and prose did not grow to answer findings.
 - [ ] Null/malformed/boundary inputs and error handling are covered or explicitly excluded.
 - [ ] Requirements trace back to IN-SCOPE items in `proposal.md`; nothing OUT-OF-SCOPE appears.
-- [ ] Challenge & Resolution Log reflects the grill (or records none ran).
 
 ## Common Mistakes
 
@@ -94,6 +104,7 @@ Do not advance to design yourself.
 | Describing HOW (functions, tables) | Specs describe observable behavior; architecture is `design.md`. |
 | Specifying OUT-OF-SCOPE behavior | Honor the proposal boundary strictly. |
 | One giant spec for many capabilities | One `specs/<capability>/spec.md` per capability. |
+| Multi-paragraph requirements, or prose appended to defend a rule | Convert to scenarios/tables; one paragraph (max 5 sentences) per requirement. |
 | Advancing to design without the gate | Every `spec:<capability>` gate must be `approved`/`skipped` first. |
 
 ## Handoff / Gate

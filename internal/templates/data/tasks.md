@@ -21,9 +21,3 @@
 - [ ] Run full project test suite: `<exact command>`
 - [ ] Manual QA against Jira acceptance criteria
 - [ ] Update tasks.md and archive change
-
-## Challenge & Resolution Log
-<!-- From the plan grill. State "No grill (workflow: <level>)" if none ran. -->
-| Challenge | Resolution |
-|-----------|------------|
-| [sizing / TDD / milestone concern] | [how it was resolved] |

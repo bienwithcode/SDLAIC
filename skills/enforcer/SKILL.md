@@ -63,7 +63,7 @@ Before taking action, verify:
 - [ ] No implementation code is being written outside `apply`
 - [ ] The phase is not advanced past a gate that is not `approved`/`skipped`
 - [ ] The correct artifact exists for the current phase:
-  - proposal phase: `proposal.md` exists (IN/OUT-OF-SCOPE table + Challenge & Resolution Log)
+  - proposal phase: `proposal.md` exists (IN/OUT-OF-SCOPE table)
   - spec phase: every `specs/<capability>/spec.md` exists (one `spec:<capability>` gate per capability)
   - design phase: `design.md` exists
   - tasks phase: `tasks.md` exists

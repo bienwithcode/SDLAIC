@@ -52,8 +52,9 @@ const (
 // OrderedPhases returns phases in their natural progression order.
 //
 // Note: the CHALLENGED phase (and its rationale.md artifact) were removed in the
-// phase-gated restructuring. Socratic challenge output now lives in a
-// "## Challenge & Resolution Log" section inside each artifact.
+// phase-gated restructuring. Socratic challenge resolutions are applied
+// directly into each artifact's content sections (scope rows, requirements,
+// decisions) — there is no separate log.
 func OrderedPhases() []Phase {
 	return []Phase{
 		PhaseEmpty,

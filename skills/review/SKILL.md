@@ -50,7 +50,9 @@ the gate `skipped`.
 2. The subagent audits against the checklist, applying the Claim Verification
    Rule, and returns a verdict + findings (each with `path:line`/ticket evidence).
 3. Persist the verdict via `sdlaic gate set` (above). Do NOT write it into the repo.
-4. On `failed`, hand findings back to the draft skill for rework.
+4. On `failed`, hand findings back to the draft skill for rework. Findings are
+   feedback for the re-draft only — never written into the artifact; the
+   `sdlaic gate set` verdict and git history already carry review outcomes.
 
 ## Code-gate flow (`review code`)
 

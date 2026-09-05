@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: [Verb statement of what the system MUST do]
-[One paragraph describing the requirement in full.]
+[One paragraph, max 5 sentences. If the requirement needs more, the extra material is a scenario or a table — never more prose.]
 
 #### Scenario: [happy path — descriptive name]
 - **GIVEN** [precondition]
@@ -19,9 +19,3 @@
 
 ### Requirement: [existing requirement being modified]
 [What changed and why.]
-
-## Challenge & Resolution Log
-<!-- From the spec grill. State "No grill (workflow: <level>)" if none ran. -->
-| Challenge | Resolution |
-|-----------|------------|
-| [edge case raised] | [scenario added / declared out of scope] |

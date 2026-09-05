@@ -58,8 +58,9 @@ ARCHIVED   sdlaic validate <change> --strict, then archive
 ```
 
 > The former CHALLENGED phase and its `rationale.md` artifact were **removed**.
-> Socratic challenge output now lives in a `## Challenge & Resolution Log`
-> section inside each artifact.
+> Socratic challenge resolutions are applied directly into each artifact's
+> content sections (scope rows, requirements/scenarios, `## Decisions`) —
+> there is no separate log section.
 
 ## Artifact Sequence
 
