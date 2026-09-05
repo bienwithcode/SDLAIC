@@ -112,7 +112,7 @@ Do not advance to planning yourself.
 
 ## Handoff / Gate
 
-1. **Grill first (strict):** the design grill (`references/grills/design-grill.md`) runs before drafting.
-2. **Review after:** hand `design.md` to `skills/review` with the `design` audit (`references/reviews/design-audit.md`).
+1. **Grill first (strict):** the design grill (bundled with `skills/grillme`) runs before drafting.
+2. **Review after:** hand `design.md` to `skills/review` for the `design` audit (checklist bundled with the review skill).
 3. The reviewer records the verdict via `sdlaic gate set --phase design --status <approved|failed> [--verdict ...]`.
 4. On `approved`, the enforcer advances to Phase 3 (`skills/plan`). On `failed`, re-draft here.

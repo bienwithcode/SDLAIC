@@ -23,7 +23,7 @@ State machine: the CLI does **not** own one. It tracks artifact files (`internal
 
 ### Part 2: Skills & Agents (Markdown)
 
-Skill definitions in `skills/<name>/SKILL.md` — loaded by Claude Code, Codex, Gemini CLI via plugin manifests.
+Skill definitions in `skills/<name>/SKILL.md` — loaded by Claude Code, Codex, Gemini CLI via plugin manifests, and by Pi via the `pi` manifest in `package.json` (`pi install git:github.com/bienwithcode/SDLAIC`, or `sdlaic open pi`).
 
 - `enforcer` — gated pipeline router, runs every agent turn
 - `new` — initialize the change (`context.md`)
@@ -32,11 +32,11 @@ Skill definitions in `skills/<name>/SKILL.md` — loaded by Claude Code, Codex, 
 - `apply` — execute tasks task-by-task after the tasks gate passes
 - `brainstorm` — **DEPRECATED** (split into `proposal`/`spec`/`design`)
 
-Grill/review checklists are modular: `references/grills/<phase>-grill.md` and `references/reviews/<phase>-audit.md`.
+Grill/review checklists are modular: `skills/grillme/references/grills/<phase>-grill.md` and `skills/review/references/reviews/<phase>-audit.md`.
 
-2 agent personas in `agents/` — `code-quality-reviewer.md`, `compliance-reviewer.md` (invoked by `references/reviews/code-audit.md`).
+2 agent personas in `agents/` — `code-quality-reviewer.md`, `compliance-reviewer.md` (invoked by `skills/review/references/reviews/code-audit.md`).
 
-Reference docs in `references/` — consumed by skills, not the CLI.
+Grill/review checklists are bundled inside their skills (`skills/grillme/references/grills/`, `skills/review/references/reviews/`) — those paths are relative to the skill's own directory, per the Agent Skills standard. Shared root docs — `references/code-research.md` (used by `enforcer`, `new`, `grillme`, `review`) and `agents/*.md` — resolve from the plugin root.
 
 ## Essential Commands
 
@@ -85,7 +85,7 @@ No external services needed for tests. Tests use temp directories via `t.TempDir
 - Frontmatter: `name` + `description` fields
 - Sections: `## Core Principle`, `## Process`, `## Output Artifacts`, `## Verification`, `## Common Mistakes`, `## Handoff`
 - Tone: imperative, no hedging. "You may NOT skip phases" not "please don't skip"
-- Cross-references use relative paths: `references/code-research.md`
+- Cross-references: in-skill paths are relative to the skill's own directory (`references/reviews/code-audit.md`); shared root docs resolve from the plugin root (`references/code-research.md`, `agents/*.md`)
 
 ### Skill & Agent Authoring Rules
 

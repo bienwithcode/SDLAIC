@@ -58,6 +58,25 @@ func TestInit_RegistersProjectWithDefaultChangesDir(t *testing.T) {
 	assert.DirExists(t, filepath.Join(dir, ".sdlaic", "changes"))
 }
 
+func TestInit_WritesAgentsMdBlock(t *testing.T) {
+	home, dir := initFixture(t)
+
+	_, err := ExecuteCommand(rootCmd, "init", "--home", home)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), agentsMdBeginMarker)
+	assert.Contains(t, string(content), agentsMdEndMarker)
+
+	// Re-running init must not duplicate or churn the block.
+	_, err = ExecuteCommand(rootCmd, "init", "--home", home)
+	require.NoError(t, err)
+	again, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	require.NoError(t, err)
+	assert.Equal(t, string(content), string(again))
+}
+
 func TestInit_ExternalChangesDirLeavesProjectUntouched(t *testing.T) {
 	home, dir := initFixture(t)
 	external := filepath.Join(t.TempDir(), "openspec", "changes")
@@ -137,7 +156,7 @@ func TestInit_RejectsEmptyChangesDir(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestInit_WritesNothingIntoTheProjectButTheChangesDir(t *testing.T) {
+func TestInit_WritesNothingIntoTheProjectButTheChangesDirAndAgentsMd(t *testing.T) {
 	home, dir := initFixture(t)
 
 	_, err := ExecuteCommand(rootCmd, "init", "--home", home)
@@ -146,8 +165,9 @@ func TestInit_WritesNothingIntoTheProjectButTheChangesDir(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(dir, ".sdlaicrc"), "no project-local state file survives")
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
-	require.Len(t, entries, 1)
+	require.Len(t, entries, 2)
 	assert.Equal(t, ".sdlaic", entries[0].Name())
+	assert.Equal(t, "AGENTS.md", entries[1].Name())
 }
 
 func TestInit_RejectsChangesDirReachedThroughSymlink(t *testing.T) {

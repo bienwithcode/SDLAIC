@@ -172,7 +172,7 @@ Construct the prompt by combining:
 {tasks.md content}
 ```
 
-**Fallback:** If the Agent tool fails or subagents cannot run, execute both review passes sequentially in the current context. Read the agent files and follow their instructions directly. Note in the review output that parallel mode was unavailable.
+**Fallback:** If the Agent tool fails or subagents cannot run, execute both review passes sequentially in the current context. Read the persona files and follow their instructions directly. Note in the review output that parallel mode was unavailable.
 
 ### Step 3: Merge and Write Review
 

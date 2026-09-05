@@ -99,7 +99,7 @@ Do not advance to the spec phase yourself. Emit a summary and hand off (see Hand
 
 ## Handoff / Gate
 
-1. **Grill first (strict):** the scope grill (`references/grills/scope-grill.md`) runs before drafting; record resolutions in the Challenge & Resolution Log.
-2. **Review after:** hand the drafted `proposal.md` to `skills/review` with the `proposal` audit (`references/reviews/proposal-audit.md`).
+1. **Grill first (strict):** the scope grill (bundled with `skills/grillme`) runs before drafting; record resolutions in the Challenge & Resolution Log.
+2. **Review after:** hand the drafted `proposal.md` to `skills/review` for the `proposal` audit (checklist bundled with the review skill).
 3. The reviewer records the verdict via `sdlaic gate set --phase proposal --status <approved|failed> [--verdict ...]` — never inside the repo.
 4. On `approved`, the enforcer advances to Phase 1B (`skills/spec`). On `failed`, re-draft here and increment the attempt.

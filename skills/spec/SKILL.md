@@ -98,7 +98,7 @@ Do not advance to design yourself.
 
 ## Handoff / Gate
 
-1. **Grill first (strict):** the spec grill (`references/grills/spec-grill.md`) runs before drafting.
-2. **Review after:** hand the drafted spec to `skills/review` with the `spec` audit (`references/reviews/spec-audit.md`).
+1. **Grill first (strict):** the spec grill (bundled with `skills/grillme`) runs before drafting.
+2. **Review after:** hand the drafted spec to `skills/review` for the `spec` audit (checklist bundled with the review skill).
 3. The reviewer records the verdict **per capability** via `sdlaic gate set --phase spec:<capability> --status <approved|failed> [--verdict ...]` — one `spec:<capability>` gate per `specs/<capability>/` directory.
 4. On `approved`, the enforcer advances to Phase 2 (`skills/design`). On `failed`, re-draft here.

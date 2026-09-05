@@ -26,6 +26,10 @@ directory that holds change artifacts.
 By default artifacts live in <project>/.sdlaic/changes. Pass --changes-dir to
 keep them somewhere else — an external path leaves the project untouched.
 
+Unless artifacts are configured outside the project, init also injects a
+short SDLAIC workflow block into the project's AGENTS.md (idempotent,
+marker-delimited) so coding agents anchor on the phase-gated process.
+
 Re-running init on a registered project updates its entry.`,
 	RunE: runInit,
 }
@@ -64,6 +68,14 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	if err := registerProjectEntry(cwd, changesDir, workflowLevel); err != nil {
 		return err
+	}
+
+	// The AGENTS.md bootstrap follows the same contract as the artifacts: an
+	// external changes directory means "leave the project directory untouched".
+	if changesDirInsideProject(changesDir, cwd) {
+		if err := ensureAgentsMdBlock(cwd); err != nil {
+			return fmt.Errorf("injecting AGENTS.md workflow block: %w", err)
+		}
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "Registered SDLAIC project %s\n", cwd)
