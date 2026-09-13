@@ -30,14 +30,21 @@ IN/OUT-OF-SCOPE row from `proposal.md`. Unevidenced findings are dropped.
 - [ ] Every requirement traces to an IN-SCOPE item in `proposal.md`.
 - [ ] No behavior specified for OUT-OF-SCOPE items.
 
+### Size & form (blocking)
+- [ ] Every requirement is one paragraph (max 5 sentences); longer requirements
+  must be split into scenarios or converted to a table/enumeration.
+- [ ] Precedence rules, branching, and case lists are tables or ordered
+  enumerations — not prose with universal quantifiers (`only`, `never`,
+  `always`, `every`).
+
 ### Hygiene
 - [ ] One `specs/<capability>/spec.md` per capability; no placeholders.
-- [ ] Challenge & Resolution Log present (or records no grill ran).
 
 ## Verdict
 
 - **APPROVE** — coverage complete, boundaries defined, every requirement testable.
-- **REQUEST_CHANGES** — missing edge scenarios or untestable THENs; list each with evidence.
+- **REQUEST_CHANGES** — missing edge scenarios, untestable THENs, or oversized /
+  unstructured requirement prose; list each with evidence.
 - **REJECT** — spec contradicts the proposal, or specifies out-of-scope behavior.
 
 Map to gate status: APPROVE → `approved`; REQUEST_CHANGES | REJECT → `failed`.
@@ -48,5 +55,5 @@ Map to gate status: APPROVE → `approved`; REQUEST_CHANGES | REJECT → `failed
 |----------|---------|
 | CRITICAL | Spec contradicts the approved proposal / specifies OUT-OF-SCOPE behavior. |
 | HIGH | A requirement has no error/edge scenario; undefined behavior for malformed input. |
-| MEDIUM | THEN not verifiable; boundary value unaddressed. |
+| MEDIUM | THEN not verifiable; boundary value unaddressed; oversized or enumeration-shaped requirement prose. |
 | LOW / INFO | Wording, scenario naming, formatting. |

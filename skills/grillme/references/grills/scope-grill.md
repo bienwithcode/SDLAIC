@@ -2,8 +2,9 @@
 
 > Loaded by `skills/grillme` before `skills/proposal`. Socratic, one question at a
 > time. Goal: pressure-test the candidate scopes + the `🌟 RECOMMENDED` rationale
-> and the scope boundary **before** `proposal` writes the gated IN/OUT line. Record
-> agreed resolutions in the proposal's `## Challenge & Resolution Log`.
+> and the scope boundary **before** `proposal` writes the gated IN/OUT line. Agreed
+> resolutions are handed back and applied into the proposal's content (Scope
+> table, Why, What Changes) by the draft skill.
 
 ## Auditor stance
 
@@ -45,8 +46,8 @@ boundary in `proposal.md`.
 Stop when: the problem is evidenced, success is testable, the `🌟 RECOMMENDED`
 rationale is justified (or overturned with a better candidate), every `REFUTED`
 dismission is sound, and every deliverable has a matching explicit OUT-OF-SCOPE
-clarification. Any unresolved item becomes a row in the Challenge & Resolution
-Log marked "DEFERRED — <reason>".
+clarification. Any unresolved item is surfaced to the user and marked
+`DEFERRED — <reason>`.
 
 ## Red flags to surface
 

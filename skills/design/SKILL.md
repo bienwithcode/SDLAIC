@@ -72,12 +72,6 @@ Request the template guidance (`instructions design`), then write to
 ## Risks / Trade-offs
 - [risk]: [mitigation]
 
-## Challenge & Resolution Log
-<!-- From the design grill. State "No grill (workflow: <level>)" if none ran. -->
-| Challenge | Resolution |
-|-----------|------------|
-| [architectural concern] | [decision] |
-
 ## Open Questions
 - [unresolved, or "None blocking"]
 ```
@@ -98,7 +92,7 @@ Do not advance to planning yourself.
 - [ ] Subsystem Boundaries section names module ownership and enforcement.
 - [ ] Decisions cite reused utilities where applicable; new duplication is justified.
 - [ ] Design satisfies every ADDED requirement in the spec; introduces no OUT-OF-SCOPE capability.
-- [ ] Challenge & Resolution Log reflects the grill (or records none ran).
+- [ ] Grill resolutions landed as `## Decisions` rows (or Risks / Open Questions where they fit).
 
 ## Common Mistakes
 

@@ -29,7 +29,6 @@ findings are dropped.
 
 ### Hygiene
 - [ ] No task breakdown / code leaked in (belongs to plan/apply).
-- [ ] Challenge & Resolution Log present (or records no grill ran).
 - [ ] No placeholders remain.
 
 ## Verdict

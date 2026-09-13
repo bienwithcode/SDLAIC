@@ -32,7 +32,6 @@ dropped.
 
 ### Hygiene
 - [ ] No technical design / task breakdown leaked in (belongs to design/plan).
-- [ ] Challenge & Resolution Log present (or records that no grill ran).
 - [ ] No template placeholders remain.
 
 ## Verdict

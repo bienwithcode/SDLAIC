@@ -26,11 +26,5 @@
 ## Risks / Trade-offs
 - [risk]: [mitigation]
 
-## Challenge & Resolution Log
-<!-- From the design grill. State "No grill (workflow: <level>)" if none ran. -->
-| Challenge | Resolution |
-|-----------|------------|
-| [architectural concern] | [decision] |
-
 ## Open Questions
 - [unresolved, or "None blocking"]

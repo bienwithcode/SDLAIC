@@ -186,12 +186,6 @@ Review the instructions output for template guidance, then write the full task l
 - [ ] Run full project test suite: `<exact command>`
 - [ ] Manual QA against Jira acceptance criteria
 - [ ] Update tasks.md and archive change
-
-## Challenge & Resolution Log
-<!-- From the plan grill. State "No grill (workflow: <level>)" if none ran. -->
-| Challenge | Resolution |
-|-----------|------------|
-| [sizing / TDD / milestone concern] | [how it was resolved] |
 ```
 
 Group tasks under **Subsystem Milestones** (from `design.md`), end each milestone
@@ -219,7 +213,6 @@ section with the full test suite command and manual QA steps.
 - [ ] Every success criterion from `proposal.md` is covered by at least one `[TEST-RED:*]` / GREEN pair
 - [ ] Every requirement from `specs/` (if it exists) maps to at least one `[TEST-RED:*]` task
 - [ ] A `Completion` section exists with the full test suite command
-- [ ] Challenge & Resolution Log reflects the grill (or records none ran)
 
 ## Common Mistakes
 

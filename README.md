@@ -88,7 +88,7 @@ Gate verdicts are stored **outside your repo** (see [Gate State](#gate-state)), 
 |-------|-------|-------------|
 | **enforcer** | Every turn | Routes to the correct phase from artifact presence **and** gate status. No skipping, no advancing past a failed/pending gate. |
 | **new** | Init | Decomposes the ticket into candidate scopes (+ a `🌟` recommendation), runs codebase research, initializes a change → `context.md` |
-| **grillme** | Grill (before every draft) | Parameterized Socratic challenge — loads the phase's grill checklist, asks tough questions one at a time; resolutions go in the artifact's *Challenge & Resolution Log* |
+| **grillme** | Grill (before every draft) | Parameterized Socratic challenge — loads the phase's grill checklist, asks tough questions one at a time; resolutions are applied into the artifact's content sections |
 | **proposal** | Scope (1A) | Owns the gated IN/OUT-OF-SCOPE decision (promotes recommended candidates) → `proposal.md` |
 | **spec** | Behavior (1B) | Formal GIVEN/WHEN/THEN requirements → `specs/<capability>/spec.md` |
 | **design** | Architecture (2) | Input-boundary validation, subsystem boundaries, DRY reuse → `design.md` |
@@ -117,7 +117,7 @@ $(sdlaic path change --change <change-name>)/
 └── tasks.md             # Ordered TDD tasks by subsystem milestone (checkbox syntax)
 ```
 
-Socratic-challenge output is recorded in a `## Challenge & Resolution Log` section **inside** each artifact.
+Socratic-challenge resolutions are applied **directly into each artifact's content** (scope rows, requirements/scenarios, `## Decisions`) — there is no separate log section.
 
 ---
 

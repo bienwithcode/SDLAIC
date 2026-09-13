@@ -1,6 +1,6 @@
 ---
 name: grillme
-description: Parameterized Socratic challenge engine. Runs BEFORE drafting an artifact (proposal | spec | design | tasks), loading the matching references/grills/<phase>-grill.md and challenging one question at a time. Records agreed resolutions in the target artifact's Challenge & Resolution Log. Toggled by workflow level (strict = on).
+description: Parameterized Socratic challenge engine. Runs BEFORE drafting an artifact (proposal | spec | design | tasks), loading the matching references/grills/<phase>-grill.md and challenging one question at a time. Hands agreed resolutions back for the draft skill to apply into the artifact's content sections. Toggled by workflow level (strict = on).
 ---
 
 # Socratic Challenge Engine (Grill Me)
@@ -24,8 +24,8 @@ Invoked as `grillme <phase>` where `<phase>` ∈ `proposal | spec | design | tas
 | `tasks` | `references/grills/plan-grill.md` | `skills/plan` | `tasks.md` |
 
 > **Per-capability (`spec` phase):** when the change has multiple `specs/<capability>/`
-> directories, the grill runs once per capability (each gets its own Challenge &
-> Resolution Log), and the downstream review records one `spec:<capability>` gate each.
+> directories, the grill runs once per capability, and the downstream review
+> records one `spec:<capability>` gate each.
 
 ## Workflow toggle
 
@@ -38,7 +38,7 @@ Invoked as `grillme <phase>` where `<phase>` ∈ `proposal | spec | design | tas
 Run the grill in a **clean-context subagent** with a fresh conversation, passing
 only: the phase's grill checklist, the upstream approved artifact(s), and the
 change's `context.md`. The subagent self-terminates on completion, returning the
-Challenge & Resolution Log rows to the main session. This keeps main-session
+resolutions to the main session. This keeps main-session
 context clean across large PRs.
 
 ## Process
@@ -69,25 +69,27 @@ Work the grill checklist's challenge sequence in order. For each question:
 Never combine questions. Never proceed without resolution or an explicit
 `UNRESOLVED` mark. Stop when the grill checklist's **stop condition** is met.
 
-### Step 3: Record resolutions in the artifact's Challenge & Resolution Log
+### Step 3: Hand resolutions back for the draft skill to apply
 
-Do NOT write a separate `rationale.md` — that artifact is removed. Instead, the
-draft skill records the agreed resolutions in the target artifact's
-`## Challenge & Resolution Log` section:
+Do NOT write a separate log or `rationale.md` — that artifact was removed, and
+artifacts carry **contract content only**. Return the agreed resolutions to the
+main session; the phase's draft skill applies each one directly into the
+artifact's own content sections:
 
-```markdown
-## Challenge & Resolution Log
-| Challenge | Resolution |
-|-----------|------------|
-| [question raised during grill] | [agreed answer, or "UNRESOLVED — <reason>"] |
-```
+| Resolution kind | Applied as |
+|-----------------|------------|
+| Scope decision ("X is out") | `proposal.md` Scope table row (OUT OF SCOPE) or Non-Goal |
+| Behavior / edge case | `specs/<capability>/spec.md` requirement or scenario |
+| Technical decision | `design.md` `## Decisions` row (or Risks / Open Questions) |
+| Sizing / sequencing constraint | `tasks.md` milestone note |
 
-Return these rows to the main session so the draft skill can embed them. Any
-`UNRESOLVED` row must be surfaced to the user before the artifact is approved.
+Return the resolutions to the main session so the draft skill can apply them.
+Any `UNRESOLVED` (or `DEFERRED`) item must be surfaced to the user before the
+artifact is approved.
 
 ## Output Artifacts
 
-- Challenge & Resolution Log rows embedded in the target artifact (no standalone file).
+- Resolutions returned to the main session, to be applied by the phase's draft skill into the target artifact's content sections (no standalone log file, no log section).
 
 ## Verification
 
@@ -95,7 +97,7 @@ Return these rows to the main session so the draft skill can embed them. Any
 - [ ] Each question was asked one at a time, research-grounded, and specific (no filler).
 - [ ] The grill checklist's stop condition was reached (or the user wrapped up).
 - [ ] Every free-form answer was paraphrase-confirmed or marked `UNRESOLVED`.
-- [ ] Resolutions are captured as Challenge & Resolution Log rows for the artifact.
+- [ ] Every resolution is actionable in the target artifact's content (scope row, requirement/scenario, decision row, or milestone note).
 - [ ] No design/draft content was produced here (grill challenges, it does not draft).
 
 ## Common Mistakes
@@ -105,14 +107,14 @@ Return these rows to the main session so the draft skill can embed them. Any
 | Loading the wrong or no grill checklist | Load `references/grills/<phase>-grill.md` for the exact phase. |
 | Asking soft/open questions | Ask hard, specific, evidence-anchored questions with failure context. |
 | Asking all questions at once | One at a time. Always. |
-| Writing a rationale.md | Removed. Resolutions go in the artifact's Challenge & Resolution Log. |
+| Writing a rationale.md or a log section | Removed. Resolutions are applied into the artifact's content sections. |
 | Designing or drafting during the grill | Grill challenges only. Park ideas for the draft skill. |
-| Running in the main context on a large PR | Run in a clean-context subagent; return only the log rows. |
+| Running in the main context on a large PR | Run in a clean-context subagent; return only the resolutions. |
 | Grilling in light/free mode | Skipped in light/free — the gate is marked `skipped`. |
 
 ## Handoff
 
-Return the Challenge & Resolution Log rows, then route to the phase's draft skill
+Return the resolutions, then route to the phase's draft skill
 (`proposal` | `spec` | `design` | `plan`). After drafting, the artifact goes to
 `skills/review`, which loads its own matching audit checklist
 (`references/reviews/<phase>-audit.md` bundled with the review skill).

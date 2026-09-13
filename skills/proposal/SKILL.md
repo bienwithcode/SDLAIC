@@ -60,15 +60,9 @@ Request the template guidance, then write to `$(sdlaic path change --change <nam
 ## Impact
 - **Affected area (indicative)**: [key modules/paths]
 - **Breaking changes**: [None intended / list]
-
-## Challenge & Resolution Log
-<!-- Populated from the scope grill. Each row: the challenge raised and how it was resolved. -->
-| Challenge | Resolution |
-|-----------|------------|
-| [question raised during grill] | [agreed answer] |
 ```
 
-The **Scope table** and the **Challenge & Resolution Log** are mandatory. If no grill ran (light/free), state "No grill (workflow: <level>)" in the log.
+The **Scope table** is mandatory. Grill resolutions are applied directly into the content (Scope rows, Why, What Changes) by the draft skill — there is no separate log section.
 
 ### Step 4: Hand off to the review gate
 
@@ -76,7 +70,7 @@ Do not advance to the spec phase yourself. Emit a summary and hand off (see Hand
 
 ## Output Artifacts
 
-- `$(sdlaic path change --change <name>)/proposal.md` — scope contract with a mandatory IN/OUT-OF-SCOPE table and Challenge & Resolution Log.
+- `$(sdlaic path change --change <name>)/proposal.md` — scope contract with a mandatory IN/OUT-OF-SCOPE table.
 
 ## Verification
 
@@ -84,7 +78,7 @@ Do not advance to the spec phase yourself. Emit a summary and hand off (see Hand
 - [ ] The Scope table has ≥1 IN-SCOPE and ≥1 OUT-OF-SCOPE row.
 - [ ] Success Criteria has ≥1 testable criterion tied to the ticket.
 - [ ] No technical design or task breakdown leaked into the proposal (that is design/plan).
-- [ ] Challenge & Resolution Log reflects the grill (or records that none ran).
+- [ ] Grill resolutions are reflected in the content (Scope table / Why / What Changes), not in a separate log.
 
 ## Common Mistakes
 
@@ -99,7 +93,7 @@ Do not advance to the spec phase yourself. Emit a summary and hand off (see Hand
 
 ## Handoff / Gate
 
-1. **Grill first (strict):** the scope grill (bundled with `skills/grillme`) runs before drafting; record resolutions in the Challenge & Resolution Log.
+1. **Grill first (strict):** the scope grill (bundled with `skills/grillme`) runs before drafting; its resolutions are applied into the Scope table and content sections.
 2. **Review after:** hand the drafted `proposal.md` to `skills/review` for the `proposal` audit (checklist bundled with the review skill).
 3. The reviewer records the verdict via `sdlaic gate set --phase proposal --status <approved|failed> [--verdict ...]` — never inside the repo.
 4. On `approved`, the enforcer advances to Phase 1B (`skills/spec`). On `failed`, re-draft here and increment the attempt.

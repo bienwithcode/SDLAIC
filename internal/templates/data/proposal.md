@@ -22,9 +22,3 @@
 ## Impact
 - **Affected area (indicative)**: [key modules/paths]
 - **Breaking changes**: [None intended / list]
-
-## Challenge & Resolution Log
-<!-- Populated from the scope grill. Each row: the challenge raised and how it was resolved. -->
-| Challenge | Resolution |
-|-----------|------------|
-| [question raised during grill] | [agreed answer] |
