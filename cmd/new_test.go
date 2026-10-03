@@ -35,7 +35,10 @@ func TestNewChange_CreatesContextTemplate(t *testing.T) {
 	// It should have content from the template
 	data, err := os.ReadFile(contextFile)
 	require.NoError(t, err)
-	assert.Contains(t, string(data), "# Context")
+	assert.Contains(t, string(data), "# Change Context")
+	assert.Contains(t, string(data), "## Prior Agreement")
+	assert.Contains(t, string(data), "✅ AGREED")
+	assert.Contains(t, string(data), "### Selected for this change")
 }
 
 func TestNewChange_SetsActive(t *testing.T) {
