@@ -60,7 +60,9 @@ func runPathChange(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	changeName, err := project.resolveChange(changeFlag)
+	// Pure path math: the directory of a change that does not exist (yet) is
+	// still a printable path — no liveness check, no healing.
+	changeName, err := project.changeName(changeFlag)
 	if err != nil {
 		return err
 	}

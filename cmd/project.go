@@ -62,16 +62,43 @@ func (p projectContext) changePath(changeName string) (string, error) {
 	return storage.ChangePath(p.ChangesDir, changeName)
 }
 
-// resolveChange returns the explicit change name if given, otherwise the
-// project's active change.
-func (p projectContext) resolveChange(flag string) (string, error) {
+// changeName returns the explicit change name if given, otherwise the
+// project's active change — pure name resolution, no liveness check.
+// `path` relies on this: printing the directory of a not-yet-created
+// change is a valid operation.
+func (p projectContext) changeName(flag string) (string, error) {
 	if flag != "" {
 		return flag, nil
 	}
-	if p.ActiveChange != "" {
-		return p.ActiveChange, nil
+	if p.ActiveChange == "" {
+		return "", domain.ErrNoActiveChange
 	}
-	return "", domain.ErrNoActiveChange
+	return p.ActiveChange, nil
+}
+
+// resolveChange returns the change name to operate on. Unlike changeName it
+// guarantees a name resolved from the ACTIVE-CHANGE POINTER points at a
+// directory that still exists: the pointer dangles when its directory was
+// removed (deleted or archived by hand), and a stale pointer must not crash
+// every command that defaults to the active change. Heal it — clear the
+// pointer and report the same condition as "no active change", naming the
+// cause. An explicit flag is returned untouched; callers surface not-found.
+func (p projectContext) resolveChange(flag string) (string, error) {
+	name, err := p.changeName(flag)
+	if err != nil || flag != "" {
+		return name, err
+	}
+
+	changePath, err := p.changePath(name)
+	if err == nil {
+		if info, statErr := os.Stat(changePath); statErr != nil || !info.IsDir() {
+			if clearErr := p.setActiveChange(""); clearErr != nil {
+				return "", fmt.Errorf("clearing stale active change %q: %w", name, clearErr)
+			}
+			return "", fmt.Errorf("active change %q no longer exists (directory removed or archived); pointer cleared — %w", name, domain.ErrNoActiveChange)
+		}
+	}
+	return name, nil
 }
 
 // setActiveChange persists the active change, writing back to whichever source

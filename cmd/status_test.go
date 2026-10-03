@@ -212,3 +212,49 @@ func TestStatus_JSONHasNoStorageModeKey(t *testing.T) {
 	assert.NotContains(t, raw, "storage_mode", "storage_mode was replaced by changes_dir")
 	assert.Contains(t, raw, "changes_dir")
 }
+
+func TestStatus_HealsDanglingActiveChange(t *testing.T) {
+	resetStatusFlags()
+	dir := initWorkspaceForTest(t)
+
+	_, err := ExecuteCommand(rootCmd, "new", "change", "DANGLING")
+	require.NoError(t, err)
+	require.Equal(t, "DANGLING", activeChangeOf(t, dir))
+
+	// The change directory disappears (deleted by hand, or archived manually)
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, ".sdlaic", "changes", "DANGLING")))
+
+	resetStatusFlags()
+	_, err = ExecuteCommand(rootCmd, "status")
+
+	// The command reports the cause clearly — no "no such file or directory"
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no longer exists")
+	assert.Contains(t, err.Error(), "cleared")
+	assert.ErrorIs(t, err, domain.ErrNoActiveChange)
+
+	// The stale pointer is healed
+	assert.Empty(t, activeChangeOf(t, dir), "dangling pointer must be cleared")
+
+	// And the next run behaves like any project with no active change
+	resetStatusFlags()
+	_, err = ExecuteCommand(rootCmd, "status")
+	assert.ErrorIs(t, err, domain.ErrNoActiveChange)
+}
+
+func TestStatus_ExplicitChangeNotFoundKeepsActivePointer(t *testing.T) {
+	resetStatusFlags()
+	dir := initWorkspaceForTest(t)
+
+	_, err := ExecuteCommand(rootCmd, "new", "change", "KEPT")
+	require.NoError(t, err)
+
+	// An explicit --change pointing at a missing change is a plain not-found…
+	resetStatusFlags()
+	_, err = ExecuteCommand(rootCmd, "status", "--change", "GONE")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrChangeNotFound)
+
+	// …and must not disturb the active pointer
+	assert.Equal(t, "KEPT", activeChangeOf(t, dir))
+}

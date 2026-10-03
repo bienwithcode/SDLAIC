@@ -87,7 +87,7 @@ func resolveChangeName(flag string) (string, error) {
 	if err != nil {
 		return "", domain.ErrNoActiveChange
 	}
-	return project.resolveChange("")
+	return project.changeName("")
 }
 
 // printJSON outputs a value as formatted JSON to stdout.

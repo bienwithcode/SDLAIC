@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -47,6 +48,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	changePath, err := project.changePath(changeName)
 	if err != nil {
 		return fmt.Errorf("resolving change path: %w", err)
+	}
+
+	// A missing target is a plain not-found error (mirrors show/archive),
+	// not a stat crash from the analyzer.
+	if info, err := os.Stat(changePath); err != nil || !info.IsDir() {
+		return fmt.Errorf("change %q not found: %w", changeName, domain.ErrChangeNotFound)
 	}
 
 	// Analyze the change
