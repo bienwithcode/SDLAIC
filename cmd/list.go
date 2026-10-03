@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/spf13/cobra"
 
@@ -96,7 +97,8 @@ func runList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// listArchived returns names of archived changes (without .tar.gz extension).
+// listArchived returns names of archived changes: date-prefixed directories,
+// plus legacy .tar.gz archives from earlier SDLAIC versions (extension stripped).
 func listArchived(archiveDir string) ([]string, error) {
 	entries, err := os.ReadDir(archiveDir)
 	if err != nil {
@@ -106,10 +108,14 @@ func listArchived(archiveDir string) ([]string, error) {
 	var names []string
 	for _, e := range entries {
 		name := e.Name()
-		// Strip .tar.gz extension
+		if e.IsDir() {
+			names = append(names, name)
+			continue
+		}
 		if len(name) > 7 && name[len(name)-7:] == ".tar.gz" {
 			names = append(names, name[:len(name)-7])
 		}
 	}
+	sort.Strings(names)
 	return names, nil
 }

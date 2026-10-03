@@ -158,7 +158,7 @@ sdlaic gate reentry -c <name> --from <phase> --reason "<why>"   # Mid-flight cha
 sdlaic list                           # List active changes
 sdlaic show <name>                    # Show change details
 sdlaic switch <name>                  # Set active change
-sdlaic archive <name>                 # Archive a completed change
+sdlaic archive <name>                 # Move a completed change to .archive/<date>-<name>/ (plain directory; refuses to overwrite)
 ```
 
 ---

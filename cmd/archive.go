@@ -1,12 +1,11 @@
 package cmd
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -17,9 +16,12 @@ import (
 var archiveCmd = &cobra.Command{
 	Use:   "archive <change-name>",
 	Short: "Archive a completed change",
-	Long: `Compresses a change directory into a tar.gz archive, moves it to
-the .archive/ directory, and removes the original. If the archived
-change was active, clears the active change.`,
+	Long: `Moves the change directory into the .archive/ directory under a
+date-prefixed name (YYYY-MM-DD-<change-name>), keeping the files plain and
+readable — no compression. A change name that already starts with a date
+prefix keeps its existing name. If the target already exists, the archive
+is refused and nothing is overwritten. If the archived change was active,
+clears the active change.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runArchive,
 }
@@ -27,6 +29,12 @@ change was active, clears the active change.`,
 func init() {
 	rootCmd.AddCommand(archiveCmd)
 }
+
+// archiveDatePrefixPattern matches the `YYYY-MM-DD-` prefix that archiving
+// prepends to a change name. A change whose name already starts with one is
+// archived under its existing name so the prefix is never stacked (same
+// convention as OpenSpec #1309).
+var archiveDatePrefixPattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}-`)
 
 func runArchive(cmd *cobra.Command, args []string) error {
 	changeName := args[0]
@@ -52,19 +60,30 @@ func runArchive(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	archiveDir := filepath.Join(basePath, ".archive")
+
+	archiveName := changeName
+	if !archiveDatePrefixPattern.MatchString(changeName) {
+		archiveName = time.Now().Format("2006-01-02") + "-" + changeName
+	}
+	archivePath := filepath.Join(archiveDir, archiveName)
+
+	// Refuse to overwrite an existing archive. The old tar.gz behavior
+	// silently replaced the previous archive AND deleted the original
+	// change directory — destroying both copies on a name collision.
+	if _, err := os.Stat(archivePath); err == nil {
+		return fmt.Errorf("archive %q already exists at %s — nothing was overwritten; remove the old archive or rename the change first", archiveName, archivePath)
+	}
+
 	if err := os.MkdirAll(archiveDir, 0755); err != nil {
 		return fmt.Errorf("creating archive directory: %w", err)
 	}
 
-	// Create tar.gz archive
-	archivePath := filepath.Join(archiveDir, changeName+".tar.gz")
-	if err := createTarGz(changePath, archivePath); err != nil {
-		return fmt.Errorf("creating archive: %w", err)
-	}
-
-	// Remove original directory
-	if err := os.RemoveAll(changePath); err != nil {
-		return fmt.Errorf("removing original directory: %w", err)
+	// Plain move, no compression: both paths live under the same changes
+	// directory, so os.Rename is atomic and never crosses a filesystem.
+	// Archived artifacts stay directly readable by agents and by
+	// `sdlaic list --all` without extracting anything.
+	if err := os.Rename(changePath, archivePath); err != nil {
+		return fmt.Errorf("moving change to archive: %w", err)
 	}
 
 	// Clear active change if it was this one
@@ -74,55 +93,6 @@ func runArchive(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Archived %q to %s\n", changeName, archivePath)
+	fmt.Fprintf(cmd.OutOrStdout(), "Archived %q as %q in %s\n", changeName, archiveName, archiveDir)
 	return nil
-}
-
-// createTarGz creates a tar.gz archive of the source directory.
-func createTarGz(srcDir string, destPath string) error {
-	outFile, err := os.Create(destPath)
-	if err != nil {
-		return err
-	}
-	defer outFile.Close()
-
-	gzw := gzip.NewWriter(outFile)
-	defer gzw.Close()
-
-	tw := tar.NewWriter(gzw)
-	defer tw.Close()
-
-	return filepath.Walk(srcDir, func(filePath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relPath, err := filepath.Rel(srcDir, filePath)
-		if err != nil {
-			return err
-		}
-
-		header, err := tar.FileInfoHeader(info, relPath)
-		if err != nil {
-			return err
-		}
-		header.Name = relPath
-
-		if err := tw.WriteHeader(header); err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		f, err := os.Open(filePath)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-
-		_, err = io.Copy(tw, f)
-		return err
-	})
 }
