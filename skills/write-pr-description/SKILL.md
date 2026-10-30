@@ -46,7 +46,7 @@ involved:
   committed for this PR (`git ls-files "$CHANGE_DIR"` / `git log --oneline --
   "$CHANGE_DIR"`):
   - **Committed** → the artifacts are visible to the reviewer; you may reference
-    them (e.g. link `proposal.md` / `spec.md`, trace an AC to a spec scenario).
+    them (e.g. link `proposal.md` / `spec.md`, trace an AC to a spec guarantee).
   - **Not committed** (untracked or `.gitignore`d) → **do not reference them**;
     the reviewer cannot see files that aren't in the PR. Read locally, keep paths
     out.
@@ -58,9 +58,11 @@ can actually see.**
 
 Read the change's `proposal.md` — both its **IN-SCOPE** deliverables (→ AC) and
 its **OUT-OF-SCOPE** boundary with reasons (→ the Out-of-scope section) — plus
-`specs/<capability>/spec.md` (GIVEN/WHEN/THEN) and `tasks.md` (success
-criteria). Derive the acceptance criteria from the **behavior the change
-delivers**, not from the file list.
+`specs/<capability>/spec.md` (guarantees + example tables) and `tasks.md`
+(success criteria). Derive the acceptance criteria from the **guarantees the
+change delivers** — each guarantee is already one observable, binary-checkable
+promise, so the AC list is essentially the guarantee list (deduplicated against
+the proposal's success criteria), not a per-scenario expansion.
 
 **Each AC must trace to the ticket/issue when one exists.** The ticket/issue is
 the source of truth for what was asked; the PR description elaborates it. If an
@@ -91,16 +93,14 @@ the PR diff, cite it, do not invent or overclaim.
 implementation detail, no file list.>
 
 ## Acceptance Criteria
-<One lead-in sentence: how many AC there are, how they group, and what they were
-compressed from — e.g. "Twelve criteria across three independent defects plus the
-backfill — roughly three per defect, compressed from the specs' 12 requirements
-and 48 scenarios".>
+<One lead-in sentence: how many AC there are and how they group — e.g. "Fourteen
+guarantees across three capabilities, carried over from the specs one-for-one".>
 
 **<Group 1 — the defect/capability stated as the reviewer sees it, not as the fix>**
 
 | # | Acceptance Criterion |
 |---|----------------------|
-| AC1 | <one observable, binary-checkable assertion> |
+| AC1 | <one observable, binary-checkable assertion — typically one spec guarantee> |
 | AC2 | <one observable assertion — the negative/absence form counts> |
 
 **<Group 2 — …>**
@@ -126,7 +126,7 @@ and 48 scenarios".>
 | ... | ... |
 
 ## How to verify
-- **AC1** — <grep / DB column / emitted event / manual step>
+- **AC1** — <grep / DB column / emitted event / manual step; cite the test entry that proves the guarantee, and any mutation spot-check performed ("broke G3 → TestGrantStatus fails → restored")>
 - **AC2** — ...
 **Not covered (stated, not hidden):**
 - <gap> — <why it cannot be asserted now> (blocked on <ticket>)

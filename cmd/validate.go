@@ -183,6 +183,19 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// fencedBlock matches a fenced code block (``` or ~~~, any info string). Fenced
+// blocks hold literal content frozen at plan time (e.g. test code with generics
+// or comparison operators in tasks.md), never template fill-ins, so they are
+// stripped before placeholder detection.
+//
+// Accepted tradeoff: a template token written INSIDE a fence is not flagged.
+// Narrowing the strip to tasks.md was considered and rejected — fenced doc
+// snippets elsewhere (design.md examples like `curl .../users/<id>`, SQL, JSON)
+// contain letter-led angle tokens legitimately, so the narrowing would trade a
+// contrived false negative for a routine false positive. The check targets
+// unfilled template scaffolding in prose, which is where it actually appears.
+var fencedBlock = regexp.MustCompile("(?s)```.*?```|~~~.*?~~~")
+
 // placeholderAngle matches a template angle-bracket token, e.g. <change-name>,
 // <exact command>, <KEY>. It is letter-led so it ignores HTML-comment openers
 // (<!--), comparison operators (<5, < b), and the arrow (->, <-).
@@ -196,8 +209,17 @@ var checkboxInner = regexp.MustCompile(`(?i)^\s*x?\s*$`)
 
 // knownTDDTag matches the structural task tags used in tasks.md (see skills/plan
 // and skills/apply). These are real content, not fill-in placeholders, so they
-// are excluded from bracket-placeholder detection.
-var knownTDDTag = regexp.MustCompile(`^(TEST-RED:(unit|feature|e2e)|IMPL|VERIFY|WIRING|REFACTOR|NO-TEST|COMMIT)$`)
+// are excluded from bracket-placeholder detection. TEST:<level> is the current
+// guarantee-scoped tag; TEST-RED:<level> (paired with [IMPL]) is the legacy
+// pair grammar and stays recognized so in-flight changes keep validating.
+//
+// The level ladder is unit < integration < e2e: `unit` touches no I/O,
+// `integration` crosses one real boundary in-process (DB, queue, filesystem,
+// in-process HTTP), `e2e` spans processes or a browser. `feature` is accepted as
+// a backward-compatible alias for `integration` (it is the Laravel/Behat word
+// for the same thing) so plans written before the ladder was renamed still
+// validate; the skills teach unit/integration/e2e only.
+var knownTDDTag = regexp.MustCompile(`^(TEST:(unit|integration|e2e|feature)|TEST-RED:(unit|integration|e2e|feature)|IMPL|VERIFY|WIRING|REFACTOR|NO-TEST|COMMIT)$`)
 
 // placeholderComment matches an instructional HTML comment by leading verb. The
 // verbs cover every template comment; "Populated"/"From" cover the grill log rows.
@@ -209,6 +231,8 @@ var placeholderComment = regexp.MustCompile(`<!--\s*(Describe|Provide|List|Defin
 // checkbox glyphs ([ ]/[x]), the known TDD task tags, and markdown link targets
 // ([text](url)) are excluded so legitimate tasks.md content is not flagged.
 func hasPlaceholder(content string) bool {
+	// Fenced code blocks carry literal content, not fill-ins — strip them first.
+	content = fencedBlock.ReplaceAllString(content, "")
 	// Mustache: {{...}}
 	if regexp.MustCompile(`\{\{.*?\}\}`).MatchString(content) {
 		return true

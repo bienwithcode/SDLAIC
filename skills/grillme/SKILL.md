@@ -79,7 +79,7 @@ artifact's own content sections:
 | Resolution kind | Applied as |
 |-----------------|------------|
 | Scope decision ("X is out") | `proposal.md` Scope table row (OUT OF SCOPE) or Non-Goal |
-| Behavior / edge case | `specs/<capability>/spec.md` requirement or scenario |
+| Behavior / edge case | `specs/<capability>/spec.md` requirement, guarantee, or example table |
 | Technical decision | `design.md` `## Decisions` row (or Risks / Open Questions) |
 | Sizing / sequencing constraint | `tasks.md` milestone note |
 
@@ -97,7 +97,7 @@ artifact is approved.
 - [ ] Each question was asked one at a time, research-grounded, and specific (no filler).
 - [ ] The grill checklist's stop condition was reached (or the user wrapped up).
 - [ ] Every free-form answer was paraphrase-confirmed or marked `UNRESOLVED`.
-- [ ] Every resolution is actionable in the target artifact's content (scope row, requirement/scenario, decision row, or milestone note).
+- [ ] Every resolution is actionable in the target artifact's content (scope row, requirement/guarantee, decision row, or milestone note).
 - [ ] No design/draft content was produced here (grill challenges, it does not draft).
 
 ## Common Mistakes

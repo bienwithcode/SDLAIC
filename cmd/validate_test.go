@@ -151,16 +151,80 @@ func TestValidate_TagsAndCheckboxesNotPlaceholders(t *testing.T) {
 	changeDir := filepath.Join(dir, ".sdlaic", "changes", "TAGS")
 	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "context.md"), []byte("# Context\nReal content."), 0644))
 	// Structural TDD tags and checkbox glyphs must NOT be flagged as placeholders.
+	// Covers the guarantee-scoped [TEST:<level>] grammar (all rungs of the
+	// unit < integration < e2e ladder), the :feature alias kept for existing
+	// plans, and the legacy [TEST-RED:<level>]+[IMPL] pair grammar.
 	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n"+
-		"- [ ] 1.1 **[TEST-RED:unit]** Add TestRefresh — assert behavior.\n"+
-		"- [ ] 1.2 **[IMPL]** Add RefreshModule.\n"+
-		"- [x] 1.3 **[VERIFY]** Milestone integrates.\n"+
-		"- [ ] 1.4 **[COMMIT]** feat: add refresh"), 0644))
+		"- [ ] 1.1 **[TEST:unit]** Guarantee: cache never shrinks — TestCacheCounter.\n"+
+		"      RED: `go test -run TestCacheCounter` → FAIL\n"+
+		"      GREEN: `go test -run TestCacheCounter` → PASS\n"+
+		"- [ ] 1.2 **[TEST:integration]** Guarantee: grants persist — TestGrantRepo.\n"+
+		"- [ ] 1.3 **[TEST:feature]** Legacy alias for integration — TestGrantEndpoint.\n"+
+		"- [ ] 1.4 **[TEST-RED:unit]** Add TestRefresh — assert behavior.\n"+
+		"- [ ] 1.5 **[IMPL]** Add RefreshModule.\n"+
+		"- [x] 1.6 **[VERIFY]** Milestone integrates.\n"+
+		"- [ ] 1.7 **[COMMIT]** feat: add refresh"), 0644))
 
 	resetStatusFlags()
 	resetValidateFlags()
 	_, err = ExecuteCommand(rootCmd, "validate")
 	assert.NoError(t, err, "TDD tags and checkbox glyphs are not placeholders")
+}
+
+func TestValidate_FencedTestCodeNotPlaceholder(t *testing.T) {
+	resetStatusFlags()
+	resetValidateFlags()
+	dir := initWorkspaceForTest(t)
+
+	_, err := ExecuteCommand(rootCmd, "new", "change", "FENCED")
+	require.NoError(t, err)
+
+	changeDir := filepath.Join(dir, ".sdlaic", "changes", "FENCED")
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "context.md"), []byte("# Context\nReal content."), 0644))
+	// Test code frozen at plan time lives in fenced blocks. Angle brackets inside
+	// the fence (generics, comparisons) are literal content, not placeholders —
+	// but an unfilled template token OUTSIDE the fence must still be caught.
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n"+
+		"- [ ] 1.1 **[TEST:unit]** Guarantee: statuses map to grants — TestStatusGrants.\n"+
+		"      Spec:\n"+
+		"      ```typescript\n"+
+		"      const cases: Array<[string, boolean]> = [\n"+
+		"        ['paid', true], ['refunded', false],\n"+
+		"      ];\n"+
+		"      ```\n"+
+		"      RED: `npm test -t TestStatusGrants` → FAIL\n"+
+		"      GREEN: `npm test -t TestStatusGrants` → PASS\n"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "proposal.md"), []byte("# Proposal\nSee <change-name> for details."), 0644))
+
+	resetStatusFlags()
+	resetValidateFlags()
+	_, err = ExecuteCommand(rootCmd, "validate")
+	assert.Error(t, err, "angle token outside a fence is still a placeholder")
+}
+
+func TestValidate_FencedTestCodeAlonePasses(t *testing.T) {
+	resetStatusFlags()
+	resetValidateFlags()
+	dir := initWorkspaceForTest(t)
+
+	_, err := ExecuteCommand(rootCmd, "new", "change", "FENCED2")
+	require.NoError(t, err)
+
+	changeDir := filepath.Join(dir, ".sdlaic", "changes", "FENCED2")
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "context.md"), []byte("# Context\nReal content."), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(changeDir, "tasks.md"), []byte("# Tasks\n"+
+		"- [ ] 1.1 **[TEST:unit]** Guarantee: statuses map to grants — TestStatusGrants.\n"+
+		"      Spec:\n"+
+		"      ```typescript\n"+
+		"      const cases: Array<[string, boolean]> = [['paid', true]];\n"+
+		"      ```\n"+
+		"      RED: `npm test -t TestStatusGrants` → FAIL\n"+
+		"      GREEN: `npm test -t TestStatusGrants` → PASS\n"), 0644))
+
+	resetStatusFlags()
+	resetValidateFlags()
+	_, err = ExecuteCommand(rootCmd, "validate")
+	assert.NoError(t, err, "fenced test code with angle brackets is not a placeholder")
 }
 
 func TestValidate_MarkdownLinkNotPlaceholder(t *testing.T) {

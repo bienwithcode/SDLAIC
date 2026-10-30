@@ -77,7 +77,7 @@ Review is a two-pass gate. Pass 1 checks whether implementation matches the cont
 
 Read all artifacts in the order they were authored:
 1. `proposal.md` — business scope, what changes, impact
-2. `specs/<capability>/spec.md` (if exists) — formal requirements with WHEN/THEN scenarios
+2. `specs/<capability>/spec.md` (if exists) — behavioral requirements with guarantees and example tables
 3. `design.md` — technical architecture, decisions, goals/non-goals (built to satisfy proposal + spec)
 4. `tasks.md` — what was planned and its completion status
 
@@ -214,9 +214,9 @@ Write the review to `$(sdlaic path change --change <name>)/review.md` with this 
 
 ### Requirements Compliance (if specs/ exists)
 
-| Requirement | Scenario | Covered by Test |
-|-------------|----------|-----------------|
-| [from spec.md] | [WHEN/THEN] | Yes/No |
+| Guarantee | Test entry | Level | Result |
+|-----------|------------|-------|--------|
+| [G-id + one-line promise from spec.md] | [test name from tasks/diff] | unit/integration/e2e/wiring | PASS/FAIL |
 
 ### Design Compliance
 
@@ -259,7 +259,7 @@ Write the review to `$(sdlaic path change --change <name>)/review.md` with this 
 | 8 | Security | PASS/FAIL | ... |
 | 9 | Performance | PASS/FAIL | ... |
 | 10 | Contract maintenance | PASS/FAIL | ... |
-| 11 | Test coverage | PASS/FAIL | ... |
+| 11 | Test quality | PASS/FAIL | ... |
 
 ### Reusability
 - [Observations about reusability patterns, or "- None notable."]
@@ -307,6 +307,7 @@ The two verdicts are **independent**. Compliance can APPROVE while Technical REQ
 | Mistake | Fix |
 |---------|-----|
 | Reviewing style instead of compliance | The proposal is the standard for compliance. CURe checks are the standard for quality. Don't mix them. |
+| Equating test count with safety | Judge tests guarantee-first: one entry per guarantee, no source-inspecting tests, hardcoded expectations. Both missing and redundant tests are findings. |
 | Giving APPROVE with unresolved HIGH findings | HIGH = must fix. No exceptions in either assessment. |
 | Not checking for scope creep | Compare changed files against tasks.md. Extra changes = scope violation. |
 | Writing vague findings ("could be improved") | Specific: what, where (file:line), why it matters, what to do. |

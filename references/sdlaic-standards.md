@@ -59,7 +59,7 @@ ARCHIVED   sdlaic validate <change> --strict, then archive
 
 > The former CHALLENGED phase and its `rationale.md` artifact were **removed**.
 > Socratic challenge resolutions are applied directly into each artifact's
-> content sections (scope rows, requirements/scenarios, `## Decisions`) —
+> content sections (scope rows, requirements/guarantees, `## Decisions`) —
 > there is no separate log section.
 
 ## Artifact Sequence
@@ -71,7 +71,7 @@ without both.
 |-------|------------------|------|---------|
 | (init) | `context.md` (optional) | — | Candidate scopes (+ recommendation), research summary, actors & use cases |
 | PROPOSED | `proposal.md` | proposal | Scope contract (IN/OUT-OF-SCOPE table) |
-| SPECIFIED | `specs/<capability>/spec.md` | spec:<capability> | Formal GIVEN/WHEN/THEN requirements (one gate per capability, if user-facing) |
+| SPECIFIED | `specs/<capability>/spec.md` | spec:<capability> | Guarantee-based behavioral requirements (one gate per capability, if user-facing) |
 | DESIGNED | `design.md` | design | Technical architecture |
 | PLANNED | `tasks.md` | tasks | Ordered TDD tasks by subsystem milestone |
 | IMPLEMENTED | Committed code | — | Source changes |
@@ -85,7 +85,7 @@ $(sdlaic path change --change <change-name>)/
 ├── proposal.md                         # Scope contract — written 1st
 ├── specs/                              # Written 2nd (if user-facing), before design
 │   └── <capability-name>/
-│       └── spec.md                     # Formal requirements (GIVEN/WHEN/THEN)
+│       └── spec.md                     # Guarantee-based behavioral requirements
 ├── design.md                           # Technical design — written 3rd
 └── tasks.md                            # Ordered task list — written 4th
 ```

@@ -547,7 +547,7 @@ After grillme, `proposal` writes the gated IN/OUT boundary in `proposal.md`.
 | Forcing the Actors & Use Cases section onto a trivial change (typo, dep bump, pure refactor) | Use `N/A: <one-line reason>` for the whole section. The extraction has a cost; skip it when the change has no behavior surface. |
 | Nesting side-effect emails/webhooks inside the State Transitions table | State Transition rows are only for persisted state changes (DB / cache / file). Notifications, webhook dispatches, async fan-out with no persisted change go in the separate "Side-effect-only Actions" list. |
 | Producing happy-path-only use cases | Every use case needs ≥1 Alternate or Edge case (or a one-line note why none exist). Happy-path-only rows give grillme nothing to anchor on. |
-| Treating the Actors section as the SDLAIC `spec.md` | This is lightweight pre-design extraction for grillme anchoring. The formal WHEN/THEN spec is `spec.md`, written later in PROPOSED phase. Do not duplicate or pre-write spec clauses here. |
+| Treating the Actors section as the SDLAIC `spec.md` | This is lightweight pre-design extraction for grillme anchoring. The guarantee-based behavioral spec is `specs/<capability>/spec.md`, written later in the SPECIFIED phase. Do not duplicate or pre-write guarantees here. |
 
 ## Handoff
 

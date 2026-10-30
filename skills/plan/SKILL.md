@@ -1,13 +1,18 @@
 ---
 name: plan
-description: Use after the design phase is approved (proposal → spec → design complete). Translates the approved design into granular, ordered TDD task pairs — each behavioral task must have a failing test written before implementation. Each task must be completable in a single focused session.
+description: Use after the design phase is approved (proposal → spec → design complete). Translates the approved design into granular, ordered tasks — one [TEST:<level>] task per guarantee, each embedding its own RED → IMPL → GREEN cycle with the test definition frozen at plan time. Each task must be completable in a single focused session.
 ---
 
 # Planning Phase
 
 ## Core Principle
 
-A plan without tests is a wish list. Every behavioral task must follow the RED → GREEN cycle: write a failing test first, then implement to make it pass. The test is the specification — if you can't write a test for it, the requirement is not clear enough to implement.
+A plan without tests is a wish list — but a plan with a test per scenario is a
+warehouse. The plan covers **every guarantee with exactly one test entry, at the
+lowest level that proves it**. Test volume is decided **once, here** — the test
+definition is frozen inside the task (no placeholders); `apply` executes it, and
+later review rounds may only add a row to an existing test table, never a new
+suite.
 
 ## Pre-conditions
 
@@ -24,15 +29,15 @@ A plan without tests is a wish list. Every behavioral task must follow the RED �
 Read all design-phase artifacts in the order they were authored: `proposal.md` → `specs/<capability>/spec.md` (if exists) → `design.md`. Understand:
 - The scope (what's in and out) — from proposal
 - The success criteria — from proposal
-- The formal requirements — from `specs/<capability>/spec.md` if it exists (these are the testable contracts)
+- The **guarantees** — from `specs/<capability>/spec.md` if it exists (these are the testable contracts; each becomes exactly one test entry)
 - The architecture and decisions — from design (these satisfy the proposal + spec)
 - The risks and trade-offs — from design
 
 ### Step 2: Identify Testable Units
 
-Before decomposing, classify each requirement into one of three buckets. Step 4's Tag boundary table gives the precise decision; this step is the first-pass triage.
+Before decomposing, classify each guarantee / success criterion into one of three buckets. Step 4's Tag boundary table gives the precise decision; this step is the first-pass triage.
 
-**Testable behavioral** — use `[TEST-RED:<level>]` + `[IMPL]`:
+**Testable behavioral** — use `[TEST:<level>]`:
 - Business logic, validation rules, calculations
 - API endpoints and their responses
 - Model behaviors, relationships, scopes
@@ -64,30 +69,49 @@ Break the design into tasks following these rules:
 3. **Ordered:** Tasks are sequenced by dependency — a task cannot start until its dependencies are complete
 4. **Scoped:** No task should require changing more than ~5 files (test file + impl files)
 5. **Vertical:** Prefer vertical slices (thin feature end-to-end) over horizontal layers (all models, then all controllers)
-6. **Strict 1-1 TDD pair:** Every `[TEST-RED:<level>]` is followed by **exactly one** `[IMPL]`. No grouping multiple `[IMPL]` tasks under a single `[TEST-RED]`. Each new behavior gets its own paired RED.
-7. **Plumbing uses `[WIRING]`:** Pure routing / DI / scaffolding work (no logic) uses `[WIRING]` instead of `[IMPL]` and does not need a paired `[TEST-RED]`, but must carry an empirical `Verify:` command on the second line.
+6. **One guarantee = one `[TEST:<level>]` task:** Each guarantee gets exactly one test entry, at the lowest level that proves it. If a guarantee seems to need several separate tests, it is probably several guarantees — split it in the spec, or use one table-driven test. Never fan out a rule into one test per input value.
+7. **Plumbing uses `[WIRING]`:** Pure routing / DI / scaffolding work (no logic) uses `[WIRING]`; it must carry an empirical `Verify:` command on the second line.
 8. **Group by Subsystem Milestone:** Cluster tasks under the subsystem boundaries named in `design.md`. Each milestone is a section. This keeps the plan aligned with the design's boundaries and makes large (30+ file) PRs reviewable milestone by milestone.
-9. **Milestone Integration Verification:** End every Subsystem Milestone with a `[VERIFY]` (or `[TEST-RED:feature]`/`[IMPL]`) task that exercises the milestone end-to-end — proving the subsystem integrates, not just that its units pass in isolation.
+9. **Milestone Integration Verification:** End every Subsystem Milestone with a `[VERIFY]` task that exercises the milestone end-to-end — proving the subsystem integrates, not just that its units pass in isolation.
 
 ### Step 4: Write Tasks in TDD Format
 
-Use grouped format with section headers (matching the actual tasks.md convention). Each task is **one line of description** plus an optional **second line with the exact command**. Tag every task with its role using inline tags.
+Use grouped format with section headers (matching the actual tasks.md convention). Each task is **one line of description** plus **annotated lines under it**. Tag every task with its role using inline tags.
 
 **Tag legend:**
-- `[TEST-RED:<level>]` — write the failing test; command must FAIL before implementing. The `:<level>` suffix is **required** and must be one of `unit`, `feature`, or `e2e` (see "Test-level guidance" below).
-- `[IMPL]` — implement to make the paired test pass; command must PASS after. Strictly 1-to-1 with the preceding `[TEST-RED:*]`.
-- `[WIRING]` — pure plumbing with no logic (route registration, DI binding, view scaffold, config wiring). No paired test required; must carry an empirical `Verify:` command on line 2.
+- `[TEST:<level>]` — one guarantee, one test entry. The `:<level>` suffix is **required** and must be one of `unit`, `integration`, or `e2e` (see "Test-level ladder" below). The task embeds its own RED → IMPL → GREEN cycle on annotated lines:
+  - `Spec:` — the frozen test definition (see "No placeholders" below).
+  - `RED:` — the exact command that must **FAIL** before implementing, failing *for the right reason* (behavior missing — not a typo or import error).
+  - `IMPL:` — one line: the minimal code to add.
+  - `GREEN:` — the exact command that must **PASS** after implementing.
+- `[WIRING]` — pure plumbing with no logic (route registration, DI binding, view scaffold, config wiring). No test entry; must carry an empirical `Verify:` command on line 2. Entry-point wiring is proven here — never by re-testing business logic through the entry point.
 - `[REFACTOR]` — optional cleanup between the final GREEN of a section and `[COMMIT]`; must carry a tests-PASS command on line 2 proving the refactor preserves behavior.
 - `[NO-TEST]` — non-testable task with no observable behavior; must include a reason inline. Reserved for pure asset additions, `.env.example` template entries, comment-only changes, and dev-only dep bumps (no runtime path touched). Anything with an empirical check belongs in `[VERIFY]` or `[WIRING]`.
 - `[VERIFY]` — behavioral but not automatable in this repo (manual QA, browser-only); must carry a runnable/observable `Verify:` command and an inline reason.
 - `[COMMIT]` — checkpoint commit; the commit message is pre-defined in backticks on this task line (provisional — may be rewritten in `apply` if scope drifts); use the prefix chain from `apply/SKILL.md`.
 
-**Test-level guidance:**
-- **unit** — pure functions, value objects, isolated services with no DB/network. Fast; prefer when possible.
-- **feature** — HTTP endpoint, action class with DB/queue. Default level in Laravel-style apps.
-- **e2e** — browser-driven (Dusk, Playwright). Use sparingly, only for cross-stack flows.
+**No placeholders — the test is designed here or not at all.** Every `[TEST:*]` task's `Spec:` line contains the actual test definition:
+- For decision logic: the `[input → expected]` table rows with **hardcoded expected values** (never derived from production constants), or
+- The exact test code in a fenced block, or
+- For non-table flows: the precise Arrange–Act–Assert in one sentence each.
 
-If unsure, default to the **lowest** level that genuinely exercises the behavior.
+"Write tests for the retry logic" is invalid — the plan that cannot name the inputs and expected outputs is not done.
+
+**Test-shape rules (from the guarantee-first doctrine):**
+- Decision logic → one table-driven test with labeled cases.
+- Entry points (HTTP handlers, console commands) → wiring checks only: the right function is called, the right response shape returns. Business rules are NOT re-tested here.
+- SQL-bound guarantees (`WHERE` clauses) → a few cases against a real DB.
+- User journeys → at most 1–2 e2e entries per flow.
+- **Banned:** tests that inspect source code (grepping method names, string-comparing queries). If a behavior cannot be observed from outside, run a subprocess or record the gap in the PR description.
+- One shared fixture builder + one doubles file per area; tests clean up the DB rows they create.
+- If a review round later finds a gap, the fix is **a new row in an existing table**, not a new suite.
+
+**Test-level ladder (unit < integration < e2e):**
+- **unit** — pure functions, value objects, services with doubles and no real I/O. Fast; prefer when possible.
+- **integration** — one real boundary crossed in-process: DB/queue/filesystem, or an HTTP endpoint driven without a browser. This replaces the older `feature` level.
+- **e2e** — multi-process or browser-driven (Playwright, Dusk, a real CLI subprocess). Use sparingly, only for cross-stack flows.
+
+If unsure, default to the **lowest** level that genuinely exercises the behavior. `:feature` is still accepted by the validator as an alias for `:integration` so existing plans keep working, but new plans use `:integration`.
 
 **Standard grouped format:**
 ```markdown
@@ -97,19 +121,21 @@ If unsure, default to the **lowest** level that genuinely exercises the behavior
 
 ## 1. [Feature section]
 
-- [ ] 1.1 **[TEST-RED:unit]** Add `[TestName]` — assert [behavior].
-      `<test-command-to-run-specific-test>` → FAIL
-- [ ] 1.2 **[IMPL]** Add `[ImplementationName]` to pass 1.1.
-      GREEN: `<test-command-to-run-specific-test>` → PASS
-- [ ] 1.3 **[TEST-RED:feature]** Add `[FeatureTestName]` — assert [behavior].
-      `<test-command-to-run-feature-test>` → FAIL
-- [ ] 1.4 **[IMPL]** Add implementation to pass 1.3.
-      GREEN: `<test-command-to-run-feature-test>` → PASS
-- [ ] 1.5 **[WIRING]** Register route / wire dependency / configuration.
+- [ ] 1.1 **[TEST:unit]** G1: cache counter never decreases — `TestCacheCounter`
+      Spec: rows: (miss on empty → 0), (hit after write → 1), (second hit → 1, not 2)
+      RED: `go test -run TestCacheCounter ./pkg/cache/` → FAIL (function missing)
+      IMPL: add counter guards in `cache.Store`
+      GREEN: `go test -run TestCacheCounter ./pkg/cache/` → PASS
+- [ ] 1.2 **[TEST:integration]** G2: unknown webhook returns 500 — `WebhookNotFoundTest`
+      Spec: POST /webhook with unknown id → HTTP 500; body error code `WEBHOOK_NOT_FOUND`
+      RED: `php artisan test --filter WebhookNotFoundTest` → FAIL
+      IMPL: resolve-or-500 branch in `WebhookController`
+      GREEN: `php artisan test --filter WebhookNotFoundTest` → PASS
+- [ ] 1.3 **[WIRING]** Register route / wire dependency / configuration.
       Verify: `<command-to-verify-the-wiring>`
-- [ ] 1.6 **[REFACTOR]** Optional cleanup of code.
+- [ ] 1.4 **[REFACTOR]** Optional cleanup of code.
       Tests still PASS: `<test-command-to-run-tests>`
-- [ ] 1.7 **[COMMIT]** `<prefix>: add feature with tests`
+- [ ] 1.5 **[COMMIT]** `<prefix>: add feature with tests`
 
 ## 2. Config & dependency updates
 
@@ -121,25 +147,26 @@ If unsure, default to the **lowest** level that genuinely exercises the behavior
 ## Completion
 
 - [ ] Full suite: `<command-to-run-full-test-suite>`
-- [ ] Manual QA against Jira acceptance criteria
+- [ ] Guarantee checklist: every guarantee maps to exactly one passing test entry
+- [ ] Mutation spot-check: break 2–3 core guarantees, confirm a test fails, restore
 - [ ] Archive change
 ```
 
 **Ordering rules:**
-- `[TEST-RED:<level>]` is followed by **exactly one** `[IMPL]` (strict 1-1, no exceptions). The GREEN check lives on that single `[IMPL]`.
-- `[WIRING]` may appear anywhere after the related `[IMPL]`; it carries its own `Verify:` command (not a `GREEN:` check).
-- `[REFACTOR]` is optional. If present, it sits after all `[IMPL]` / `[WIRING]` in the section and before `[COMMIT]`; must prove GREEN with a tests-PASS command.
+- A `[TEST:<level>]` task is self-contained: its RED is executed and watched failing before its IMPL, its GREEN after. Check the checkbox only when the full cycle is done.
+- `[WIRING]` may appear anywhere after the related `[TEST:*]` task; it carries its own `Verify:` command.
+- `[REFACTOR]` is optional. If present, it sits after all `[TEST:*]` / `[WIRING]` tasks in the section and before `[COMMIT]`; must prove GREEN with a tests-PASS command.
 - `[COMMIT]` is the last task in the section.
 - Write a **provisional** `[COMMIT]` message during planning using the prefix chain from `apply/SKILL.md`. The message is **not frozen** — during `apply`, if implementation diverged in a way that makes the message inaccurate (renamed method, reduced scope, additional file touched), rewrite the `[COMMIT]` line in `tasks.md` **before** committing.
 - Discovery/research tasks (no tag) go in section 0 before any test or impl work.
 
-**Tag boundary — `[NO-TEST]` vs `[VERIFY]` vs `[WIRING]`:**
+**Tag boundary — `[NO-TEST]` vs `[VERIFY]` vs `[WIRING]` vs `[TEST:*]`:**
 
 | Has observable behavior? | Has an empirical check? | Use |
 |---|---|---|
 | No (pure asset / env template / comment-only / dev-only dep bump) | — | `[NO-TEST]` + inline reason |
 | Yes, but only routing / DI / scaffolding (no logic) | Yes (`Verify:` command, e.g., `route:list`) | `[WIRING]` |
-| Yes, behavioral, automatable | Yes (`[TEST-RED:*]` + GREEN) | `[TEST-RED:<level>]` + `[IMPL]` |
+| Yes, behavioral, automatable | Yes (RED/IMPL/GREEN cycle in one task) | `[TEST:<level>]` |
 | Yes, behavioral, **not** automatable in this repo (manual QA, browser-only) | Yes (`Verify:` command, must be runnable/observable) | `[VERIFY]` + inline reason |
 
 **Rule:** never use `[NO-TEST]` when an empirical check exists — that case is `[VERIFY]` or `[WIRING]`. "Too hard to test" is not a `[NO-TEST]` reason.
@@ -157,11 +184,11 @@ If unsure, default to the **lowest** level that genuinely exercises the behavior
 
 ### Step 5: Validate Coverage
 
-Cross-check every success criterion from `proposal.md` against the tasks:
-- Each success criterion must be covered by at least one task's GREEN check
-- If a criterion has no corresponding test task, add one
-- If a task doesn't map to any criterion, question whether it's needed
-- Every requirement from `specs/` (if it exists) must map to at least one test
+Cross-check every guarantee against the tasks:
+- Every guarantee from `specs/` and every success criterion from `proposal.md` maps to **exactly one** test entry (a `[TEST:*]` task, or a `[WIRING]`/`[VERIFY]` where the bucket rules say so).
+- If a guarantee has no test entry, add **one** — do not fan out.
+- If a test entry maps to no guarantee, question whether it is needed (it is either redundant, or an unnamed guarantee — name it in the spec first).
+- Sanity-check the volume: a change with ~10–15 guarantees should have ~10–15 test entries. Many more means either fan-out (fix the plan) or spec inflation (fix the spec).
 
 ### Step 6: Save the Plan
 
@@ -175,7 +202,7 @@ Review the instructions output for template guidance, then write the full task l
 # Tasks: <change-name>
 
 ## Milestone 1: <Subsystem name from design.md>
-[TDD task pairs for this subsystem, in order]
+[One [TEST:<level>] task per guarantee for this subsystem, in order]
 - [ ] 1.N **[VERIFY]** Milestone Integration Verification — <subsystem> integrates end-to-end.
       Verify: `<command exercising the whole milestone>`
 
@@ -184,52 +211,53 @@ Review the instructions output for template guidance, then write the full task l
 
 ## Completion
 - [ ] Run full project test suite: `<exact command>`
-- [ ] Manual QA against Jira acceptance criteria
+- [ ] Guarantee checklist: every guarantee maps to exactly one passing test entry
+- [ ] Mutation spot-check: break 2–3 core guarantees, confirm a test fails, restore
 - [ ] Update tasks.md and archive change
 ```
 
 Group tasks under **Subsystem Milestones** (from `design.md`), end each milestone
 with a Milestone Integration Verification task, and include a **Completion**
-section with the full test suite command and manual QA steps.
+section with the full test suite command and the guarantee checklist.
 
 ## Output Artifacts
 
-- `$(sdlaic path change --change <name>)/tasks.md` — ordered TDD task list with RED/GREEN checks
+- `$(sdlaic path change --change <name>)/tasks.md` — ordered task list, one `[TEST:<level>]` task per guarantee with its frozen test definition
 
 ## Verification
 
-- [ ] Every testable task has a `[TEST-RED:<level>]` task with a specific test class/method name
-- [ ] Every `[TEST-RED]` carries a `:<level>` suffix (`:unit`, `:feature`, or `:e2e`)
-- [ ] Every `[TEST-RED:*]` task has a concrete command on the second line (→ FAIL)
-- [ ] Every `[TEST-RED:*]` is followed by **exactly one** `[IMPL]` (strict 1-1)
-- [ ] Every `[IMPL]` has a GREEN command (→ PASS) on its line
+- [ ] Every `[TEST:*]` task names the guarantee it proves (G-id or verbatim) and a specific test name
+- [ ] Every `[TEST]` carries a `:<level>` suffix (`:unit`, `:integration`, or `:e2e`; `:feature` accepted as an alias)
+- [ ] Every `[TEST:*]` task has a `Spec:` line with the actual test definition (table rows with hardcoded expected values, or fenced test code) — no "write tests for X"
+- [ ] Every `[TEST:*]` task has a `RED:` command (→ FAIL, right reason stated) and a `GREEN:` command (→ PASS)
+- [ ] No test entry duplicates a guarantee already tested at a lower level; entry points carry wiring checks only
+- [ ] No test inspects source code; expected values are hardcoded literals, not production constants
 - [ ] Every `[WIRING]` task carries a `Verify:` command on the second line
 - [ ] Every `[REFACTOR]` task carries a tests-PASS command (proving GREEN still holds)
 - [ ] Every non-testable task is tagged `[NO-TEST]` with an inline reason and has no empirical check (else use `[VERIFY]` or `[WIRING]`)
-- [ ] `[TEST-RED:*]` always immediately precedes its paired `[IMPL]` within the same section
 - [ ] No task requires changing more than ~5 files
 - [ ] Tasks are grouped under Subsystem Milestones matching `design.md` boundaries
 - [ ] Every Subsystem Milestone ends with a Milestone Integration Verification task
-- [ ] Every success criterion from `proposal.md` is covered by at least one `[TEST-RED:*]` / GREEN pair
-- [ ] Every requirement from `specs/` (if it exists) maps to at least one `[TEST-RED:*]` task
-- [ ] A `Completion` section exists with the full test suite command
+- [ ] Every guarantee from `specs/` and every success criterion from `proposal.md` maps to exactly one test entry
+- [ ] A `Completion` section exists with the full test suite command and the guarantee checklist
 
 ## Common Mistakes
 
 | Mistake | Fix |
 |---------|-----|
-| `[IMPL]` task with no preceding `[TEST-RED]` in the section | Every behavioral section needs a failing test first. No exceptions. |
-| `[TEST-RED]` task placed after `[IMPL]` tasks | Tests come before implementation. Reorder the section. |
+| One test entry per input value of the same rule | One table-driven `[TEST:*]` entry with a row per input class. |
+| `[TEST:*]` task with a placeholder Spec ("write tests for the retry logic") | The plan names inputs and expected outputs, or it is not done. |
+| Re-testing a business rule through an entry point | The rule is proven once at unit level; the entry point gets a `[WIRING]`/wiring-check only. |
+| Test inspects source (greps method names, string-compares SQL) | Test observable behavior from outside; run a subprocess if needed, or record the gap. |
+| Expected values looped from production constants | Hardcode expected values in the test — a mutation that empties the constant must still fail the test. |
+| Missing test entry for a guarantee | Add exactly one — the guarantee is the unit of coverage, not the scenario. |
 | Vague test reference ("write a unit test") | Name the exact class: `TestRefreshModuleCache` |
-| Command missing from `[TEST-RED]` line | Add the exact test command (e.g., `go test`) on line 2. |
-| GREEN check missing from an `[IMPL]` | Every `[IMPL]` must end with a GREEN command so `apply` knows it succeeded. |
-| Skipping `[TEST-RED]` for "simple" logic | If it's behavior, it needs a test. Complexity is not the criterion. |
+| Command missing from `RED:`/`GREEN:` lines | Add the exact test command on the annotated line. |
+| Skipping `[TEST]` for "simple" logic | If it's behavior, it needs a test. Complexity is not the criterion. |
 | Marking a testable task `[NO-TEST]` without a real reason | "Too hard to test" is not a reason — it usually signals a design issue. |
 | Tasks too large ("implement the feature") | Break down until each task is 2-5 minutes. |
-| Missing coverage for a success criterion | If there's no `[TEST-RED]` for it, it's not done. Add a task. |
 | Planning beyond the proposal scope | If a task isn't in the proposal, it doesn't belong in the plan. |
-| Bare `[TEST-RED]` without `:level` suffix | Pick `:unit`, `:feature`, or `:e2e`. If unsure, default to the lowest level that genuinely exercises the behavior. |
-| Multiple `[IMPL]` under one `[TEST-RED:*]` | Split — each behavior gets its own paired RED. If the extras are pure plumbing, use `[WIRING]`. |
+| Bare `[TEST]` without `:level` suffix | Pick `:unit`, `:integration`, or `:e2e`. If unsure, default to the lowest level that genuinely exercises the behavior. |
 | `[NO-TEST]` used when an empirical check exists | That's `[VERIFY]` or `[WIRING]`. Reserve `[NO-TEST]` for "no observable behavior at all". |
 | `[REFACTOR]` task without a tests-PASS command | Refactor must preserve behavior; prove it with a passing test command on line 2. |
 | `[COMMIT]` message left stale after scope shifted in `apply` | Rewrite the `[COMMIT]` line in `tasks.md` before committing. The plan-time message is provisional. |
@@ -242,10 +270,9 @@ section with the full test suite command and manual QA steps.
 4. On `approved`, route to `apply`. On `failed`, re-decompose here.
 
 Route to `apply` to execute the task list one task at a time. During `apply`, the agent must:
-1. Execute `[TEST-RED:*]` task — write the test, confirm the command fails
-2. Execute the paired `[IMPL]` task — implement only enough code to pass; confirm the GREEN command passes
-3. Execute any `[WIRING]` tasks in the section — run each `Verify:` command and confirm the expected output
-4. Execute any `[REFACTOR]` task (if present) — confirm the tests-PASS command still passes after the cleanup
-5. Execute the `[COMMIT]` checkpoint: re-read the `[COMMIT]` line and **rewrite it in `tasks.md` if scope drifted**, then stage test + impl files + `tasks.md` and commit using the (possibly updated) message
+1. Execute a `[TEST:<level>]` task as one RED → IMPL → GREEN cycle: write the test from the frozen `Spec:`, run `RED:` and watch it fail for the stated reason, write the minimal `IMPL:`, run `GREEN:` and confirm PASS
+2. Execute any `[WIRING]` tasks in the section — run each `Verify:` command and confirm the expected output
+3. Execute any `[REFACTOR]` task (if present) — confirm the tests-PASS command still passes after the cleanup
+4. Execute the `[COMMIT]` checkpoint: re-read the `[COMMIT]` line and **rewrite it in `tasks.md` if scope drifted**, then stage test + impl files + `tasks.md` and commit using the (possibly updated) message
 
-**Compatibility note:** tags `[TEST-RED:<level>]`, `[WIRING]`, and `[REFACTOR]` are additive — they extend the grammar that `apply/SKILL.md` and `compliance-reviewer.md` already recognize. Those skills treat `[TEST-RED:unit]` identically to `[TEST-RED]` (the level is metadata for humans and auditors). `[WIRING]` is handled like an `[IMPL]` whose verification is a `Verify:` command instead of a `GREEN:` command. `[REFACTOR]` is handled like a no-op `[IMPL]` whose verification confirms tests still pass. No downstream skill changes required.
+**Compatibility note (legacy pair grammar):** older plans may carry `[TEST-RED:<level>]` + `[IMPL]` pairs. `apply/SKILL.md` and `compliance-reviewer.md` treat such a pair as one logical `[TEST:<level>]` task split across two checkboxes — the pair's RED/GREEN checks are equivalent to the embedded cycle. New plans must use the single-task `[TEST:<level>]` grammar.

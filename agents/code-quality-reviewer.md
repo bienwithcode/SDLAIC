@@ -60,7 +60,7 @@ Evaluate each one with evidence. For each check that fails, cite the specific fi
 | 8 | Security | Any new user inputs, SQL queries, file ops, API endpoints? Are they safe? |
 | 9 | Performance | Any performance considerations (N+1 queries, unnecessary loops, missing indices)? |
 | 10 | Contract maintenance | Do changes maintain established contracts (APIs, interfaces, return types)? |
-| 11 | Test coverage | Adequate tests covering new functions and features? Review test code statically. |
+| 11 | Test quality | One test entry per guarantee at the lowest level that proves it; entry points assert wiring only; NO tests that grep/inspect source code or string-compare queries; expected values hardcoded (never looped from production constants); shared fixture builder + doubles per area; tests clean up the data they create. Judge by "if I break this guarantee, does a test fail?" — not by count. Review test code statically. |
 
 ### Part 4: Reusability
 
@@ -109,7 +109,7 @@ Produce ONLY the markdown below. No preamble, no explanation outside the markdow
 | 8 | Security | PASS/FAIL | ... |
 | 9 | Performance | PASS/FAIL | ... |
 | 10 | Contract maintenance | PASS/FAIL | ... |
-| 11 | Test coverage | PASS/FAIL | ... |
+| 11 | Test quality | PASS/FAIL | ... |
 
 ### Reusability
 - [Observations about reusability patterns, or "- None notable."]

@@ -31,13 +31,13 @@ Implement exactly what the task describes — nothing more, nothing less.
 **Rules during execution:**
 - **One task only.** Do not start the next task until the current one passes verification.
 - **Task tag semantics.** A section in `tasks.md` may contain these tagged tasks; apply each one differently:
-  - `[TEST-RED:<level>]` — write the failing test; the command on line 2 must FAIL before the paired `[IMPL]`.
-  - `[IMPL]` — implement to make the paired `[TEST-RED]` pass; the `GREEN:` command must PASS. Strictly 1-to-1 with the preceding `[TEST-RED:*]`.
-  - `[WIRING]` — pure plumbing (route / DI / scaffold). **No paired `[TEST-RED]` required.** Run the `Verify:` command on line 2; it must succeed (e.g., `route:list | grep …` returns the expected line).
-  - `[REFACTOR]` — optional cleanup between the final `[IMPL]` of a section and `[COMMIT]`. Re-run the tests-PASS command on line 2 and confirm it still PASSes (prove behavior is preserved).
+  - `[TEST:<level>]` — one guarantee, one test entry. Execute as a single RED → IMPL → GREEN cycle **inside this task**: write the test from the task's frozen `Spec:` definition, run the `RED:` command and watch it fail **for the stated reason** (behavior missing — not a typo), write the minimal `IMPL:`, then run the `GREEN:` command and confirm PASS. Never write implementation before the RED was observed. Check the checkbox only when GREEN holds.
+  - `[WIRING]` — pure plumbing (route / DI / scaffold). **No test entry required.** Run the `Verify:` command on line 2; it must succeed (e.g., `route:list | grep …` returns the expected line).
+  - `[REFACTOR]` — optional cleanup between the final `[TEST:*]` of a section and `[COMMIT]`. Re-run the tests-PASS command on line 2 and confirm it still PASSes (prove behavior is preserved).
   - `[COMMIT]` — checkpoint commit at the end of a section. Use the commit message verbatim from the task line (rewrite it first if scope drifted — see `plan/SKILL.md` for the provisional-message convention).
+  - *Legacy:* an older plan may carry `[TEST-RED:<level>]` + `[IMPL]` pairs — treat the pair as one logical `[TEST:<level>]` task: RED on the first checkbox, GREEN on the second.
 - **Match existing style.** Follow the code conventions already present in the files you touch.
-- **Commit-shaped units.** At the end of a section, after the final `[IMPL]` / `[WIRING]` / `[REFACTOR]` task in that section has been verified, execute the `[COMMIT]` checkpoint task defined on the last line of the section. The commit message is pre-defined on that `[COMMIT]` task line — use it verbatim. See commit prefix rules below for how to write `[COMMIT]` messages during planning.
+- **Commit-shaped units.** At the end of a section, after the final `[TEST:*]` / `[WIRING]` / `[REFACTOR]` task in that section has been verified, execute the `[COMMIT]` checkpoint task defined on the last line of the section. The commit message is pre-defined on that `[COMMIT]` task line — use it verbatim. See commit prefix rules below for how to write `[COMMIT]` messages during planning.
 - **No silent scope expansion.** If you notice something that "should also be fixed" while working on a task, do NOT fix it. Add it as a comment or note for a separate change.
 
 ### Commit Prefix Rules
@@ -60,26 +60,26 @@ Use the first applicable rule:
    fix(parser): remove stray template fence in JSONParser
    ```
 
-For TDD pairs — commit test and implementation together after the GREEN check passes, not separately:
+For each `[TEST:<level>]` task, the RED and GREEN checks live on the task's own annotated lines — commit test and implementation together after the GREEN check passes:
 ```
 JIRA-1013: add TextNormalizer with tests
 ```
 
 ### Step 3: Verify the Task
 
-The verification command sits on **line 2** of the task. How to read it depends on the tag:
+The verification commands sit on the **annotated lines** of the task. How to read them depends on the tag:
 
-| Tag | Line-2 command | Expected outcome |
+| Tag | Annotated line | Expected outcome |
 |---|---|---|
-| `[TEST-RED:<level>]` | bare command (e.g., `go test -run TestTextNormalizer`) | Must **FAIL** — that's the RED proof |
-| `[IMPL]` | prefixed `GREEN:` | Must **PASS** — same test now passes |
-| `[WIRING]` | prefixed `Verify:` | Must succeed (exit 0 / expected output) — no paired RED to compare against |
-| `[REFACTOR]` | prefixed `Tests still PASS:` (or equivalent re-run) | Must **PASS** — proves the refactor didn't break behavior |
+| `[TEST:<level>]` | `RED:` command | Must **FAIL** for the stated reason (behavior missing) — that's the RED proof. Write impl only after observing it. |
+| `[TEST:<level>]` | `GREEN:` command | Must **PASS** — the same test now passes; run the full suite too if cheap. |
+| `[WIRING]` | `Verify:` command | Must succeed (exit 0 / expected output) — no RED to compare against |
+| `[REFACTOR]` | `Tests still PASS:` (or equivalent re-run) | Must **PASS** — proves the refactor didn't break behavior |
 
 Run the command exactly as written; do not paraphrase.
 
-**If verification passes**, continue with the next task in the section. When the final `[IMPL]` / `[WIRING]` / `[REFACTOR]` in the section is verified, execute the `[COMMIT]` checkpoint in this exact order:
-1. Check off **every** task checkbox in this section that has been verified: `[TEST-RED:*]`, `[IMPL]`, and any `[WIRING]` / `[REFACTOR]` tasks. (Each was verified in turn before reaching this `[COMMIT]`.)
+**If verification passes**, continue with the next task in the section. When the final `[TEST:*]` / `[WIRING]` / `[REFACTOR]` in the section is verified, execute the `[COMMIT]` checkpoint in this exact order:
+1. Check off **every** task checkbox in this section that has been verified: `[TEST:*]` tasks (full RED → IMPL → GREEN cycle done) and any `[WIRING]` / `[REFACTOR]` tasks. (Each was verified in turn before reaching this `[COMMIT]`.)
 2. Stage all files changed by this section **plus** `tasks.md`:
    ```bash
    git add <impl-files> <test-files> <wiring-files> "$(sdlaic path change --change <name>)/tasks.md"
@@ -107,14 +107,16 @@ During implementation, you may discover:
 
 ### Step 5: Advance State
 
-`tasks.md` checkboxes (TEST-RED, IMPL, any WIRING/REFACTOR, and COMMIT) are all updated as part of the `[COMMIT]` step in Step 3. No separate update is needed after committing.
+`tasks.md` checkboxes (`[TEST:*]`, any WIRING/REFACTOR, and COMMIT) are all updated as part of the `[COMMIT]` step in Step 3. No separate update is needed after committing.
 
 ### Step 6: Completion Check
 
 When all tasks are complete:
-1. Re-read `proposal.md` success criteria
-2. Confirm each criterion has a passing verification
-3. Run `sdlaic status --change <name>` to confirm all artifacts are complete
+1. Re-read the guarantees in `specs/` and the success criteria in `proposal.md`
+2. Walk them **line by line** — passing tests alone do not prove requirements met; confirm each guarantee maps to a passing test entry and each criterion holds in the code
+3. Run a **mutation spot-check** on 2–3 core guarantees: deliberately break each one, confirm its test fails, restore the code. A guarantee whose break passes silently is not covered.
+4. Run the full project test suite
+5. Run `sdlaic status --change <name>` to confirm all artifacts are complete
 
 ## Output Artifacts
 
@@ -125,13 +127,14 @@ When all tasks are complete:
 ## Verification
 
 - [ ] Every task in `tasks.md` is checked off
-- [ ] Every task's verification command was run and passed
+- [ ] Every task's verification command was run and passed (RED was observed failing for the stated reason before each IMPL)
 - [ ] No files were modified that aren't listed in any task
 - [ ] No scope expansion occurred (compare changes against proposal)
 - [ ] Each completed task has a corresponding git commit
 - [ ] Every `[WIRING]` task in completed sections has had its `Verify:` command run and observed
 - [ ] Every `[REFACTOR]` task in completed sections has had its tests-PASS command re-run and confirmed PASS
-- [ ] Every completed section has its `[COMMIT]` checkbox checked, with the commit staging all files changed by `[TEST-RED:*]` / `[IMPL]` / `[WIRING]` / `[REFACTOR]` tasks in that section plus `tasks.md`
+- [ ] Every completed section has its `[COMMIT]` checkbox checked, with the commit staging all files changed by `[TEST:*]` / `[WIRING]` / `[REFACTOR]` tasks in that section plus `tasks.md`
+- [ ] Guarantee checklist walked line by line; mutation spot-check ran on 2–3 core guarantees
 
 ## Common Mistakes
 
@@ -139,11 +142,13 @@ When all tasks are complete:
 |---------|-----|
 | Implementing multiple tasks at once | One task at a time. Verify. Commit. Then next. |
 | Skipping verification because "it looks right" | Run the command. Evidence, not opinions. |
+| Writing impl before observing RED fail | The RED failure is the proof the test tests something. Watch it fail first. |
 | Fixing unrelated code "while I'm here" | This is scope creep. Don't touch it. |
 | Moving to the next task after a failed verification | A failed task is not complete. Fix it or escalate. |
 | Adding "just one more thing" | That thing was not in the plan. Park it. |
 | Modifying verification to make it pass | Verification is the standard. Fix the implementation. |
-| Demanding a paired `[TEST-RED]` for a `[WIRING]` task | Wiring is pure plumbing. The `Verify:` command is the proof — no RED needed. |
+| Inventing new tests beyond the plan's frozen `Spec:` | Tests are designed at plan time. If a gap appears, park it and add a table row in a follow-up — do not silently expand the suite. |
+| Demanding a test entry for a `[WIRING]` task | Wiring is pure plumbing. The `Verify:` command is the proof — no RED needed. |
 | Skipping the `[REFACTOR]` tests-PASS re-run because "I only renamed things" | Refactor must prove behavior is preserved. Re-run the tests-PASS command before the `[COMMIT]`. |
 
 ## Anti-Rationalization
@@ -152,6 +157,7 @@ When all tasks are complete:
 |-----------------|---------|
 | "I'll verify all tasks at the end" | Failures compound. Verify each task immediately. |
 | "This small fix doesn't need a commit" | Every completed section gets a commit at its `[COMMIT]` checkpoint. No exceptions. |
+| "The tests pass, so the requirements are met" | Walk the guarantee checklist line by line and spot-check with mutations. Passing tests alone prove nothing about untested guarantees. |
 | "I'll clean up the code while I'm at it" | Clean up is a separate change. Stay in scope. |
 | "The user will want this extra feature" | The user approved the proposal. Deliver what was planned. |
 | "The wiring is obviously correct, no need to run `Verify:`" | Run the command. `route:list \| grep …` takes 2 seconds and is the only evidence. |

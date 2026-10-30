@@ -25,7 +25,7 @@ matches the contract.
 Extract the markdown body of `agents/code-quality-reviewer.md` as the subagent
 prompt. Append the changed files, full diff, and `tasks.md`. The pass runs a
 CURe-style quality assessment (DRY, module boundaries, pattern drift,
-architecture, security, performance, test coverage).
+architecture, security, performance, test quality).
 
 ## Claim Verification Rule
 
@@ -43,13 +43,36 @@ Each pass returns an independent verdict (APPROVE / REQUEST_CHANGES / REJECT):
 Record the merged result and both pass outputs verbatim in
 `$(sdlaic path change --change <name>)/review.md` (see `skills/review` for the full template).
 
+## Test quality (both passes)
+
+Test value is proven by what fails when code breaks — not by test count. Judge
+the suite guarantee-first:
+
+- **Guarantee coverage:** every spec guarantee has exactly one test entry at the
+  lowest level that proves it; entry points assert wiring only.
+- **No source-inspecting tests:** tests observe behavior from outside (HTTP
+  codes, emitted events, DB rows) — never grep method names or string-compare
+  queries/SQL. Such tests break on every refactor and block nothing.
+- **Hardcoded expectations:** expected values are literals in the test — a test
+  that loops a production constant passes even when the constant is emptied
+  (mutation trap).
+- **Duplication:** the same rule re-tested at multiple layers is duplication,
+  not extra safety.
+- **Fixtures:** one shared fixture builder + one doubles file per area; tests
+  clean up the DB rows they create.
+- **Redundant growth:** a review round answered with a NEW suite instead of a
+  row in an existing table is a finding against the PR, not extra credit.
+
+"Missing tests" and "redundant tests" are both findings — do not only hunt for
+the former.
+
 ## Severity guide
 
 | Severity | Example |
 |----------|---------|
 | CRITICAL | Implementation contradicts an approved contract; security defect; data loss. |
-| HIGH | Missing test coverage for a success criterion; scope violation; broken module boundary. |
-| MEDIUM | DRY violation; pattern drift; weak error handling. |
+| HIGH | Missing test entry for a guarantee; source-inspecting test; test deriving expectations from production constants; scope violation; broken module boundary. |
+| MEDIUM | Same rule re-tested at multiple layers; per-file duplicate fixtures/doubles; tests that don't clean up their data; DRY violation; pattern drift; weak error handling. |
 | LOW / INFO | Naming, formatting, documentation. |
 
 ## Scope discipline

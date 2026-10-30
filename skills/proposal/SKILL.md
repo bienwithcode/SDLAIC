@@ -88,7 +88,7 @@ Do not advance to the spec phase yourself. Emit a summary and hand off (see Hand
 | Vague or absent OUT-OF-SCOPE column | Every plausible-but-excluded item must be named OUT (with a reason). This is the anti-overreach control. |
 | Re-decomposing the ticket instead of using `context.md > ## Candidate Scopes` | `new` already decomposed the ticket into candidates with Kind + Readiness + dispositions, and recorded the user's multi-select in `### Selected for this change`. Start there: selected → IN, the rest → OUT with reasons. Don't re-derive the candidate set. |
 | Moving a `✅ AGREED` scope OUT because it looks low-value or expensive | Not yours to decide — it carries a recorded approval. Only an explicit user instruction, or a blocker the approver could not have known about, justifies it; cite which, and quote the original approval. |
-| Writing spec scenarios here | Behavioral GIVEN/WHEN/THEN belong in `skills/spec`. |
+| Writing spec guarantees here | Behavioral guarantees belong in `skills/spec`. |
 | Advancing to spec without the gate | The proposal gate must be `approved`/`skipped` first. |
 
 ## Handoff / Gate

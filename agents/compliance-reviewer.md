@@ -43,14 +43,16 @@ Check against design.md:
 ### Part 3: TDD Compliance
 
 Check the git log and tasks.md for TDD adherence:
-- Every behavioral task in tasks.md tagged `[TEST-RED]` must have a corresponding test file committed
-- Test commits should precede (or be bundled with) their implementation — check `git log` order
+- Every behavioral task in tasks.md tagged `[TEST:<level>]` must have a corresponding test file committed
+- Test commits should precede (or be bundled with) their implementation — check `git log` order (legacy plans may carry `[TEST-RED]` + `[IMPL]` pairs; treat the pair as one logical task)
 - Flag any behavioral task that has an implementation but no corresponding test as a HIGH issue
+- Flag fan-out: several test cases for one rule where one table-driven test with hardcoded expected values would do
 
 ### Part 4: Requirements Compliance (only if specs/ exists)
 
-- For each WHEN/THEN scenario in the delta spec, verify the code handles it
-- Are all scenarios covered by tests?
+- For each **guarantee** in the delta spec, verify the code implements it
+- Is every guarantee covered by exactly one test entry, at the lowest level that proves it?
+- Are entry points checked for wiring only (not re-testing business rules)?
 
 ## Output Format
 
@@ -80,9 +82,9 @@ Produce ONLY the markdown below. No preamble, no explanation outside the markdow
 
 ### Requirements Compliance (if specs/ exists)
 
-| Requirement | Scenario | Covered by Test |
-|-------------|----------|-----------------|
-| [from spec.md] | [WHEN/THEN] | Yes/No |
+| Guarantee | Test entry | Level | Result |
+|-----------|------------|-------|--------|
+| [G-id + one-line promise from spec.md] | [test name] | unit/integration/e2e/wiring | PASS/FAIL |
 
 ### Design Compliance
 
