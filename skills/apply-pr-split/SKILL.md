@@ -113,6 +113,11 @@ outcome, acceptance criteria, out-of-scope with reasons ("lands in <PR>"), real
 position and a link to the original PR. Include any notice the repository requires
 (e.g. a machine-generated disclosure).
 
+Every row of the plan's **Undeclared behaviour changes** table that landed in this
+PR must appear in its description as a declared change, with the decision the user
+took and the affected callers. Every retained-code adjustment made after a drop is
+stated as a deviation from the original PR.
+
 ### Step 7: Publish gate
 
 Show the user, in one summary:
