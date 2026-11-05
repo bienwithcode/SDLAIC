@@ -12,6 +12,8 @@
     "grillme",
     "review",
     "write-pr-description",
+    "plan-pr-split",
+    "apply-pr-split",
     "apply"
   ]
 }

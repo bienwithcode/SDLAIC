@@ -21,7 +21,9 @@
       "./skills/proposal",
       "./skills/review",
       "./skills/spec",
-      "./skills/write-pr-description"
+      "./skills/write-pr-description",
+      "./skills/plan-pr-split",
+      "./skills/apply-pr-split"
     ]
   }
 }
